@@ -22,9 +22,6 @@ class LifeCycleServiceProvider extends ServiceProvider
     
     public function register(): void
     {
-        $this->mergeConfigFrom(
-            __DIR__.'/../config/lifecycle.php', 'lifecycle'
-        );
         
         if (class_exists(\App\Hooks\HooksKernel::class)) {
             $this->hooksKernel = new \App\Hooks\HooksKernel();
@@ -40,11 +37,7 @@ class LifeCycleServiceProvider extends ServiceProvider
     
     public function boot(): void
     {
-        if ($this->app->runningInConsole()) {
-            $this->publishes([
-                __DIR__.'/../config/lifecycle.php' => config_path('lifecycle.php'),
-            ], 'lifecycle-config');
-            
+        if ($this->app->runningInConsole()) {            
             $this->publishes([
                 __DIR__.'/../stubs/HooksKernel.stub' => app_path('Hooks/HooksKernel.php'),
             ], 'lifecycle-kernel');
