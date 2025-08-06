@@ -56,14 +56,13 @@ class PaymentService implements LifeCycle
     
     public function process(int $userId, float $amount): string
     {
-        $args = ['user_id' => $userId, 'amount' => $amount];
-        $this->runHook('before_payment', $args);
+        // New: pass variables directly with spread operator!
+        $this->runHook('before_payment', $userId, $amount);
         
         // Use potentially modified amount
-        $paymentId = $this->doPayment($userId, $args['amount']);
+        $paymentId = $this->doPayment($userId, $amount);
         
-        $afterArgs = ['user_id' => $userId, 'amount' => $args['amount'], 'payment_id' => $paymentId];
-        $this->runHook('after_payment', $afterArgs);
+        $this->runHook('after_payment', $userId, $amount, $paymentId);
         
         return $paymentId;
     }
@@ -101,9 +100,68 @@ class FraudDetectionHook implements LifeCycleHook
 composer require php-diffused/lifecycle
 ```
 
-### Publish Configuration
+### Publish Configuration (Optional)
 ```bash
 php artisan vendor:publish --tag=lifecycle-config
+```
+
+This will create a `config/lifecycle.php` file where you can customize:
+- **Auto-discovery**: Enable/disable automatic hook discovery
+- **Cache**: Configure hook caching for better performance
+- **Error handling**: Configure error logging and handling
+
+## ⚙️ Configuration
+
+### Available Configuration Options
+
+```php
+// config/lifecycle.php
+
+return [
+    // Enable/disable automatic hook discovery from filesystem
+    'auto_discovery' => true,
+    
+    // Path where hooks are discovered
+    'discovery_path' => app_path('Hooks'),
+    
+    // Cache configuration for better performance
+    'cache' => [
+        'enabled' => env('APP_ENV') === 'production',
+        'key' => 'lifecycle.hooks',
+        'ttl' => 86400, // 24 hours
+    ],
+    
+    // Error handling configuration
+    'error_handling' => [
+        'log_failures' => true,
+        'throw_on_critical' => true,
+    ],
+];
+```
+
+### Cache Management
+
+Clear the hooks cache when you add or modify hooks:
+
+```bash
+php artisan lifecycle:clear-cache
+```
+
+### Disabling Auto-Discovery
+
+If you prefer to manually register hooks (for better performance or control):
+
+```php
+// In config/lifecycle.php
+'auto_discovery' => false,
+
+// Then manually register in a service provider
+public function boot()
+{
+    $paymentService = app(PaymentService::class);
+    $paymentService->addHook(new ValidatePaymentHook());
+    $paymentService->addHook(new ProcessPaymentHook());
+}
 ```
 
 ## 🏗️ Architecture Overview
@@ -210,15 +268,13 @@ class OrderService implements LifeCycle
     
     public function createOrder(int $userId, array $products): string
     {
-        $beforeArgs = ['user_id' => $userId, 'products' => $products];
-        $this->runHook('before_create', $beforeArgs);
+        $this->runHook('before_create', $userId, $products);
         
         // Use potentially modified products
-        $orderId = $this->processOrder($userId, $beforeArgs['products']);
-        $total = $this->calculateTotal($beforeArgs['products']);
+        $orderId = $this->processOrder($userId, $products);
+        $total = $this->calculateTotal($products);
         
-        $afterArgs = ['user_id' => $userId, 'order_id' => $orderId, 'total' => $total];
-        $this->runHook('after_create', $afterArgs);
+        $this->runHook('after_create', $userId, $orderId, $total);
         
         return $orderId;
     }
@@ -320,52 +376,81 @@ $service->removeHooksFor('before_payment');
 $hooks = $service->getHooks();
 ```
 
+### Using runHook with Spread Operator
+
+```php
+class OrderService implements LifeCycle
+{
+    use HasLifeCycleHooks;
+    
+    public static function lifeCycle(): array
+    {
+        return [
+            'calculate_total' => ['items', 'subtotal', 'tax', 'discount']
+        ];
+    }
+    
+    public function calculateTotal(array $items): array
+    {
+        $subtotal = $this->calculateSubtotal($items);
+        $tax = 0;
+        $discount = 0;
+        
+        // Pass variables directly - they will be modified by reference
+        $this->runHook('calculate_total', $items, $subtotal, $tax, $discount);
+        
+        return [
+            'subtotal' => $subtotal,
+            'tax' => $tax,
+            'discount' => $discount,
+            'total' => $subtotal + $tax - $discount
+        ];
+    }
+}
+```
+
 ### 🔄 Mutable Hooks (Pass by Reference)
-Hooks can modify values that are passed through the lifecycle:
+Hooks can modify values that are passed through the lifecycle using spread operator:
 
 ```php
 // In your service
 public function processPayment(int $userId, float $amount): array
 {
-    // Create args array
-    $args = [
-        'user_id' => $userId,
-        'amount' => $amount,
-        'discount' => 0
-    ];
+    $originalAmount = $amount;
     
-    // Hooks can modify the values
-    $this->runHook('before_payment', $args);
+    // Pass variables directly - they will be modified by reference
+    $this->runHook('before_payment', $userId, $amount);
     
-    // Use modified values
+    // Use modified values directly
     return [
-        'original_amount' => $amount,
-        'final_amount' => $args['amount'],  // Modified by hooks
-        'discount' => $args['discount']     // Added by hooks
+        'original_amount' => $originalAmount,
+        'final_amount' => $amount,  // Modified directly by hooks
+        'user_id' => $userId
     ];
 }
 
-// Hook that modifies values
+// Hook implementation
 class ApplyDiscountHook implements LifeCycleHook
 {
     public function handle(array &$args): void
     {
-        // Modify values directly in the array
+        // The framework maps your variables to the array automatically
         $args['amount'] *= 0.9;  // 10% discount
-        $args['discount'] = 10;
     }
 }
 ```
 
 Multiple hooks can chain modifications:
 ```php
-$args = ['amount' => 100.00];
+$amount = 100.00;
+$userId = 123;
 
 $service->addHook(new ApplyDiscountHook());  // 100 -> 90
 $service->addHook(new ApplyTaxHook());       // 90 -> 97.20
-$service->runHook('before_payment', $args);
 
-echo $args['amount']; // 97.20
+$service->runHook('before_payment', $userId, $amount);
+
+echo $amount; // 97.20 - modified directly!
 ```
 
 ### Hook Conditions

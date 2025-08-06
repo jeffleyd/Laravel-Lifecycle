@@ -19,50 +19,44 @@ class MutableHooksTest extends TestCase
     
     public function test_hook_can_modify_values_passed_by_reference(): void
     {
-        $args = [
-            'user_id' => 123,
-            'amount' => 100.00,
-            'coupon' => null
-        ];
+        $userId = 123;
+        $amount = 100.00;
+        $coupon = null;
+        $fees = 0.00;
         
         $discountHook = new ApplyDiscountHook();
         $this->service->addHook($discountHook);
         
-        $this->service->runHook('before_payment', $args);
+        $this->service->runHook('before_payment', $userId, $amount, $coupon, $fees);
         
-        $this->assertEquals(90.00, $args['amount'], 'Amount should be modified by discount');
-        $this->assertEquals('DISCOUNT10', $args['coupon'], 'Coupon should be set by hook');
-        $this->assertEquals(123, $args['user_id'], 'User ID should remain unchanged');
+        $this->assertEquals(90.00, $amount, 'Amount should be modified by discount');
+        $this->assertEquals('DISCOUNT10', $coupon, 'Coupon should be set by hook');
+        $this->assertEquals(123, $userId, 'User ID should remain unchanged');
     }
     
-    public function test_hook_cannot_modify_values_not_passed_by_reference(): void
+    public function test_hook_modifies_values_by_reference(): void
     {
         // Arrange
+        $userId = 123;
         $amount = 100.00;
+        $coupon = null;
+        $fees = 0.00;
         $modifierHook = new ModifierHook();
         $this->service->addHook($modifierHook);
         
-        // Act - criamos uma cópia do array para simular passagem sem referência
-        $args = [
-            'user_id' => 123,
-            'amount' => $amount,
-            'coupon' => null
-        ];
-        $argsCopy = $args; // Cópia do array
-        $this->service->runHook('before_payment', $argsCopy);
+        // Act - values are passed by reference
+        $this->service->runHook('before_payment', $userId, $amount, $coupon, $fees);
         
-        $this->assertEquals(100.00, $amount, 'Original amount should NOT be modified');
-        $this->assertEquals(999.99, $argsCopy['amount'], 'Copy should be modified by hook');
+        $this->assertEquals(999.99, $amount, 'Amount should be modified by hook');
+        $this->assertEquals(123, $userId, 'User ID should remain unchanged');
     }
     
     public function test_multiple_hooks_can_chain_modifications(): void
     {
-        $args = [
-            'user_id' => 123,
-            'amount' => 100.00,
-            'coupon' => null,
-            'fees' => 0.00
-        ];
+        $userId = 123;
+        $amount = 100.00;
+        $coupon = null;
+        $fees = 0.00;
         
         $discountHook = new ApplyDiscountHook();      // -10%
         $taxHook = new ApplyTaxHook();               // +8%
@@ -72,10 +66,10 @@ class MutableHooksTest extends TestCase
         $this->service->addHook($taxHook);
         $this->service->addHook($feeHook);
         
-        $this->service->runHook('before_payment', $args);
+        $this->service->runHook('before_payment', $userId, $amount, $coupon, $fees);
         
-        $this->assertEquals(97.20, $args['amount'], 'Amount modified by discount then tax');
-        $this->assertEquals(2.50, $args['fees'], 'Processing fee should be added');
+        $this->assertEquals(97.20, $amount, 'Amount modified by discount then tax');
+        $this->assertEquals(2.50, $fees, 'Processing fee should be added');
     }
     
     public function test_real_world_payment_flow_with_mutations(): void
@@ -102,7 +96,7 @@ class PaymentTestService implements LifeCycle
     public static function lifeCycle(): array
     {
         return [
-            'before_payment' => ['user_id', 'amount'],  // coupon é opcional
+            'before_payment' => ['user_id', 'amount', 'coupon', 'fees'],
             'after_payment' => ['payment_id', 'status'],
         ];
     }
@@ -118,7 +112,9 @@ class ApplyDiscountHook implements LifeCycleHook
         if (isset($args['amount'])) {
             $args['amount'] *= 0.9; // 10% discount
         }
-        $args['coupon'] = 'DISCOUNT10';
+        if (array_key_exists('coupon', $args)) {
+            $args['coupon'] = 'DISCOUNT10';
+        }
     }
 }
 
@@ -174,21 +170,17 @@ class CompletePaymentService implements LifeCycle
     
     public function processPayment(int $userId, float $amount, string $currency): array
     {
-        $args = [
-            'user_id' => $userId,
-            'amount' => $amount,
-            'currency' => $currency,
-            'loyalty_applied' => false
-        ];
+        $originalAmount = $amount;
+        $originalCurrency = $currency;
         
-        $this->runHook('before_payment', $args);
+        $this->runHook('before_payment', $userId, $amount, $currency);
         
         return [
             'user_id' => $userId,
-            'original_amount' => $amount,
-            'final_amount' => $args['amount'],
-            'currency' => $args['currency'],
-            'loyalty_applied' => $args['loyalty_applied'] ?? false
+            'original_amount' => $originalAmount,
+            'final_amount' => $amount,
+            'currency' => $currency,
+            'loyalty_applied' => $currency !== $originalCurrency || $amount !== $originalAmount
         ];
     }
 }

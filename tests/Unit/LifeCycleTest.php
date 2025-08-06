@@ -24,11 +24,9 @@ class LifeCycleTest extends TestCase
         $hook = new TestHook();
         $this->service->addHook($hook);
         
-        $args = [
-            'param1' => 'value1',
-            'param2' => 'value2'
-        ];
-        $this->service->runHook('test_lifecycle', $args);
+        $param1 = 'value1';
+        $param2 = 'value2';
+        $this->service->runHook('test_lifecycle', $param1, $param2);
         
         $this->assertTrue($hook->wasExecuted());
         $this->assertEquals([
@@ -42,8 +40,7 @@ class LifeCycleTest extends TestCase
         $this->expectException(InvalidLifeCycleException::class);
         $this->expectExceptionMessage("LifeCycle 'invalid_lifecycle' is not defined");
         
-        $args = [];
-        $this->service->runHook('invalid_lifecycle', $args);
+        $this->service->runHook('invalid_lifecycle');
     }
     
     public function test_throws_exception_for_missing_arguments(): void
@@ -51,10 +48,9 @@ class LifeCycleTest extends TestCase
         $this->expectException(InvalidLifeCycleException::class);
         $this->expectExceptionMessage("LifeCycle 'test_lifecycle' expects arguments: param2");
         
-        $args = [
-            'param1' => 'value1'
-        ];
-        $this->service->runHook('test_lifecycle', $args);
+        $param1 = 'value1';
+        // Missing param2
+        $this->service->runHook('test_lifecycle', $param1);
     }
     
     public function test_critical_hook_failure_throws_exception(): void
@@ -65,11 +61,9 @@ class LifeCycleTest extends TestCase
         $this->expectException(HookExecutionException::class);
         $this->expectExceptionMessage("Critical hook failed in lifecycle 'test_lifecycle'");
         
-        $args = [
-            'param1' => 'value1',
-            'param2' => 'value2'
-        ];
-        $this->service->runHook('test_lifecycle', $args);
+        $param1 = 'value1';
+        $param2 = 'value2';
+        $this->service->runHook('test_lifecycle', $param1, $param2);
     }
     
     public function test_optional_hook_failure_does_not_throw_exception(): void
@@ -77,11 +71,9 @@ class LifeCycleTest extends TestCase
         $hook = new OptionalFailingHook();
         $this->service->addHook($hook);
         
-        $args = [
-            'param1' => 'value1',
-            'param2' => 'value2'
-        ];
-        $this->service->runHook('test_lifecycle', $args);
+        $param1 = 'value1';
+        $param2 = 'value2';
+        $this->service->runHook('test_lifecycle', $param1, $param2);
         
         $this->assertTrue(true);
     }
@@ -109,11 +101,9 @@ class LifeCycleTest extends TestCase
         $this->service->addHook($testHook);
         $this->service->addHook($otherHook);
         
-        $args = [
-            'param1' => 'value1',
-            'param2' => 'value2'
-        ];
-        $this->service->runHook('test_lifecycle', $args);
+        $param1 = 'value1';
+        $param2 = 'value2';
+        $this->service->runHook('test_lifecycle', $param1, $param2);
         
         $this->assertTrue($testHook->wasExecuted());
         $this->assertFalse($otherHook->wasExecuted());

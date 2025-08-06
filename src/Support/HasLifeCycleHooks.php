@@ -31,12 +31,14 @@ trait HasLifeCycleHooks
     }
     
     /**
+     * Run hooks with spread operator
+     * 
      * @param string $lifeCycle
-     * @param array<string, mixed> $args
+     * @param mixed ...$args Individual arguments passed by reference
      * @throws InvalidLifeCycleException
      * @throws HookExecutionException
      */
-    public function runHook(string $lifeCycle, array &$args = []): void
+    public function runHook(string $lifeCycle, &...$args): void
     {
         if (!array_key_exists($lifeCycle, static::lifeCycle())) {
             throw new InvalidLifeCycleException(
@@ -45,20 +47,27 @@ trait HasLifeCycleHooks
         }
         
         $expectedArgs = static::lifeCycle()[$lifeCycle];
-        $providedArgs = array_keys($args);
-        $missingArgs = array_diff($expectedArgs, $providedArgs);
         
-        if (!empty($missingArgs)) {
+        // Validate we have all required arguments
+        if (count($args) < count($expectedArgs)) {
+            $missing = array_slice($expectedArgs, count($args));
             throw new InvalidLifeCycleException(
-                "LifeCycle '{$lifeCycle}' expects arguments: " . implode(', ', $missingArgs)
+                "LifeCycle '{$lifeCycle}' expects arguments: " . implode(', ', $missing)
             );
         }
         
+        // Create associative array with references for hooks
+        $argsArray = [];
+        foreach ($expectedArgs as $index => $argName) {
+            $argsArray[$argName] = &$args[$index];
+        }
+        
+        // Run hooks with the args array
         $this->getHooks()
             ->filter(fn(LifeCycleHook $hook) => $hook->getLifeCycle() === $lifeCycle)
-            ->each(function (LifeCycleHook $hook) use (&$args, $lifeCycle) {
+            ->each(function (LifeCycleHook $hook) use (&$argsArray, $lifeCycle) {
                 try {
-                    $hook->handle($args);
+                    $hook->handle($argsArray);
                 } catch (\Throwable $e) {
                     self::handlerError($hook, $e, $lifeCycle);
                 }

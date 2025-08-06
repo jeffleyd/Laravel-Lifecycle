@@ -29,15 +29,15 @@ class HookOrderingTest extends TestCase
         $this->service->addHook($hook2);
         $this->service->addHook($hook3);
         
-        $args = ['value' => 100];
-        $this->service->runHook('process', $args);
+        $value = 100;
+        $this->service->runHook('process', $value);
         
         $this->assertEquals(['Hook1', 'Hook2', 'Hook3'], self::$executionOrder);
         
         // Hook1: 100 * 2 = 200
         // Hook2: 200 + 50 = 250
         // Hook3: 250 - 25 = 225
-        $this->assertEquals(225, $args['value']);
+        $this->assertEquals(225, $value);
     }
     
     public function test_mixed_ordered_and_unordered_hooks(): void
@@ -52,8 +52,8 @@ class HookOrderingTest extends TestCase
         $this->service->addHook($hook3);
         $this->service->addHook($hookExtra);
         
-        $args = ['value' => 100];
-        $this->service->runHook('process', $args);
+        $value = 100;
+        $this->service->runHook('process', $value);
         
         // Verifica ordem de execução
         $this->assertEquals(['Hook1', 'Hook3', 'ExtraHook'], self::$executionOrder);
@@ -62,7 +62,7 @@ class HookOrderingTest extends TestCase
         // Hook1: 100 * 2 = 200
         // Hook3: 200 - 25 = 175
         // ExtraHook: 175 * 1.1 = 192.5
-        $this->assertEqualsWithDelta(192.5, $args['value'], 0.0001);
+        $this->assertEqualsWithDelta(192.5, $value, 0.0001);
     }
     
     public function test_multiple_lifecycles_with_different_orders(): void
@@ -77,14 +77,14 @@ class HookOrderingTest extends TestCase
         $this->service->addHook($afterHook1);
         $this->service->addHook($afterHook2);
         
-        $args = ['value' => 100];
+        $value = 100;
         
         self::$executionOrder = [];
-        $this->service->runHook('before', $args);
+        $this->service->runHook('before', $value);
         $this->assertEquals(['BeforeHook2', 'BeforeHook1'], self::$executionOrder);
         
         self::$executionOrder = [];
-        $this->service->runHook('after', $args);
+        $this->service->runHook('after', $value);
         $this->assertEquals(['AfterHook1', 'AfterHook2'], self::$executionOrder);
     }
     
