@@ -1,0 +1,26 @@
+<?php
+
+namespace App\Hooks;
+
+class HooksKernel
+{
+    /**
+     * Hook execution order.
+     * 
+     * @var array<class-string, array<string, array<class-string>>>
+     */
+    public array $hookOrder = [
+        // Example:
+        // \App\Services\PaymentService::class => [
+        //     'before_payment' => [
+        //         \App\Hooks\PaymentService\ValidateAmountHook::class,
+        //         \App\Hooks\PaymentService\FraudDetectionHook::class,
+        //         \App\Hooks\PaymentService\ApplyDiscountHook::class,
+        //     ],
+        //     'after_payment' => [
+        //         \App\Hooks\PaymentService\SendEmailHook::class,
+        //         \App\Hooks\PaymentService\UpdateAnalyticsHook::class,
+        //     ]
+        // ],
+    ];
+}
