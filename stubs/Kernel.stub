@@ -5,29 +5,39 @@ namespace App\Hooks;
 class Kernel
 {
     /**
-     * Hook execution order and custom hook paths.
+     * Hook execution order and custom hook registration.
+     * 
+     * This property serves two purposes:
+     * 1. Define execution order for auto-discovered hooks
+     * 2. Register hooks from custom locations (outside auto-discovery)
      * 
      * @var array<class-string, array<string, array<class-string>>>
      */
     public array $hooks = [
-        // Example with execution order:
+        // Example 1: Control execution order of auto-discovered hooks
         // \App\Services\PaymentService::class => [
-        //     'before_payment' => [
-        //         \App\Hooks\PaymentService\ValidateAmountHook::class,
-        //         \App\Hooks\PaymentService\FraudDetectionHook::class,
-        //         \App\Hooks\PaymentService\ApplyDiscountHook::class,
+        //     'payment_begin' => [
+        //         \App\Hooks\PaymentService\ValidateAmountHook::class,  // Auto-discovered
+        //         \App\Hooks\PaymentService\FraudDetectionHook::class,  // Auto-discovered
+        //         \App\Hooks\PaymentService\ApplyDiscountHook::class,   // Auto-discovered
         //     ],
-        //     'after_payment' => [
-        //         \App\Hooks\PaymentService\SendEmailHook::class,
-        //         \App\Hooks\PaymentService\UpdateAnalyticsHook::class,
+        // ],
+        
+        // Example 2: Register hooks from custom locations
+        // \App\Services\OrderService::class => [
+        //     'order_created' => [
+        //         \External\Package\Hooks\InventoryCheck::class,       // Custom location
+        //         \App\Modules\Shipping\Hooks\CalculateShipping::class, // Custom location
+        //         \App\Hooks\OrderService\SendConfirmation::class,     // Auto-discovered
         //     ]
         // ],
         
-        // Example with custom hook paths (if not using auto-discovery):
-        // \App\Services\OrderService::class => [
-        //     'order_created' => [
-        //         \Custom\Path\To\MyHook::class,
-        //         \Another\Custom\Hook::class,
+        // Example 3: Mix auto-discovered hooks with custom ones
+        // \App\Services\UserService::class => [
+        //     'user_created' => [
+        //         \App\Hooks\UserService\ValidateData::class,          // Auto-discovered (will be found)
+        //         \Packages\Analytics\UserTrackingHook::class,         // Custom (will be registered)
+        //         \App\CustomHooks\WelcomeEmailHook::class,            // Custom (will be registered)
         //     ]
         // ],
     ];

@@ -82,32 +82,27 @@ class LifeCycleServiceProvider extends ServiceProvider
     protected function discoverHooksFor(string $class): \Illuminate\Support\Collection
     {
         $hooks = collect();
+        $availableHooks = [];
 
-        if (!config('lifecycle.auto_discovery', true)) {
-            return $hooks;
-        }
-        
-        $className = class_basename($class);
-        $discoveryPath = config('lifecycle.discovery_path', app_path('Hooks'));
-        $hookPath = $discoveryPath . DIRECTORY_SEPARATOR . $className;
+        // Auto-discovery de hooks (se habilitado)
+        if (config('lifecycle.auto_discovery', true)) {
+            $className = class_basename($class);
+            $discoveryPath = config('lifecycle.discovery_path', app_path('Hooks'));
+            $hookPath = $discoveryPath . DIRECTORY_SEPARATOR . $className;
 
-        $availableHooks = $this->discoverHooksInPath($hookPath, $className);
-        
-        if (!$this->hooksKernel || empty($availableHooks)) {
-            foreach ($availableHooks as $hookClass => $hookInstance) {
-                $hooks->push($hookInstance);
-                $this->hookCache[$class][] = $hookClass;
-            }
-            return $hooks;
+            $availableHooks = $this->discoverHooksInPath($hookPath, $className);
         }
-        
-        $orderedHooks = $this->organizeHooksByKernel($class, $availableHooks);
-        
-        foreach ($orderedHooks as $hookClass => $hookInstance) {
+
+        // Verificar se há hooks definidos no Kernel
+        if ($this->hooksKernel && isset($this->hooksKernel->hooks[$class])) {
+            $availableHooks = $this->organizeHooksByKernel($class, $availableHooks);
+        }
+
+        foreach ($availableHooks as $hookClass => $hookInstance) {
             $hooks->push($hookInstance);
             $this->hookCache[$class][] = $hookClass;
         }
-        
+
         return $hooks;
     }
     
@@ -160,6 +155,7 @@ class LifeCycleServiceProvider extends ServiceProvider
             return $availableHooks;
         }
         
+        // Organizar hooks descobertos por auto-discovery por ciclo de vida
         $hooksByLifecycle = [];
         foreach ($availableHooks as $hookClass => $hookInstance) {
             $lifecycle = $hookInstance->getLifeCycle();
@@ -169,17 +165,43 @@ class LifeCycleServiceProvider extends ServiceProvider
             $hooksByLifecycle[$lifecycle][$hookClass] = $hookInstance;
         }
         
-        foreach ($hooksByLifecycle as $lifecycle => $lifecycleHooks) {
-            $order = $kernelHooks[$serviceClass][$lifecycle] ?? [];
+        // Processar cada ciclo de vida definido no Kernel
+        foreach ($kernelHooks[$serviceClass] as $lifecycle => $kernelOrder) {
+            if (!isset($hooksByLifecycle[$lifecycle])) {
+                $hooksByLifecycle[$lifecycle] = [];
+            }
             
-            foreach ($order as $orderedHookClass) {
-                if (isset($lifecycleHooks[$orderedHookClass])) {
-                    $orderedHooks[$orderedHookClass] = $lifecycleHooks[$orderedHookClass];
-                    unset($lifecycleHooks[$orderedHookClass]);
+            // Adicionar hooks do Kernel que não foram descobertos automaticamente
+            foreach ($kernelOrder as $hookClass) {
+                if (!isset($hooksByLifecycle[$lifecycle][$hookClass])) {
+                    try {
+                        if (class_exists($hookClass) && is_subclass_of($hookClass, LifeCycleHook::class)) {
+                            $hookInstance = $this->app->make($hookClass);
+                            $hooksByLifecycle[$lifecycle][$hookClass] = $hookInstance;
+                        }
+                    } catch (\Throwable $e) {
+                        // Log error but continue
+                        if (function_exists('logger') && app()->bound('log')) {
+                            logger()->warning("Failed to instantiate kernel hook: {$hookClass}", [
+                                'error' => $e->getMessage(),
+                                'service' => $serviceClass,
+                                'lifecycle' => $lifecycle
+                            ]);
+                        }
+                    }
                 }
             }
             
-            foreach ($lifecycleHooks as $hookClass => $hookInstance) {
+            // Organizar hooks na ordem definida no Kernel
+            foreach ($kernelOrder as $orderedHookClass) {
+                if (isset($hooksByLifecycle[$lifecycle][$orderedHookClass])) {
+                    $orderedHooks[$orderedHookClass] = $hooksByLifecycle[$lifecycle][$orderedHookClass];
+                    unset($hooksByLifecycle[$lifecycle][$orderedHookClass]);
+                }
+            }
+            
+            // Adicionar hooks descobertos que não estão na ordem do Kernel
+            foreach ($hooksByLifecycle[$lifecycle] as $hookClass => $hookInstance) {
                 $orderedHooks[$hookClass] = $hookInstance;
             }
         }
