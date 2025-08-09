@@ -10,6 +10,8 @@
 
 > **Diffused Programming**: Allow different developers (including juniors) to inject business logic into specific lifecycle points without modifying core classes.
 
+> 🎉 **v2.0 Released!** Now with global helper functions and no trait required! Fully backward compatible - [see migration guide](#-migration-guide-v1-to-v2)
+
 ---
 
 ## 🧭 Philosophy & Best Practices
@@ -40,11 +42,9 @@ Imagine you have a `PaymentService` and multiple developers need to add differen
 ## 🔥 Quick Example
 
 ```php
-// 🎯 Core service stays clean and focused
+// 🎯 Core service stays clean and focused (NEW: No trait needed!)
 class PaymentService implements LifeCycle
-{
-    use HasLifeCycleHooks;
-    
+{    
     public static function lifeCycle(): array
     {
         return [
@@ -56,13 +56,12 @@ class PaymentService implements LifeCycle
     
     public function process(int $userId, float $amount): string
     {
-        // New: pass variables directly with spread operator!
-        $this->runHook('before_payment', $userId, $amount);
+        runHook($this, 'before_payment', $userId, $amount);
         
         // Use potentially modified amount
         $paymentId = $this->doPayment($userId, $amount);
         
-        $this->runHook('after_payment', $userId, $amount, $paymentId);
+        runHook($this, 'after_payment', $userId, $amount, $paymentId);
         
         return $paymentId;
     }
@@ -109,6 +108,64 @@ This will create a `config/lifecycle.php` file where you can customize:
 - **Auto-discovery**: Enable/disable automatic hook discovery
 - **Cache**: Configure hook caching for better performance
 - **Error handling**: Configure error logging and handling
+
+## 🔄 Migration Guide (v1 to v2)
+
+### Step-by-Step Migration
+
+The new API is **fully backward compatible**, so you can migrate gradually:
+
+#### 1. **Update Your Services (Optional)**
+```php
+// OLD (still works)
+class PaymentService implements LifeCycle {
+    use HasLifeCycleHooks;
+    
+    public function process($amount) {
+        $this->runHook('payment.begin', $amount);
+    }
+}
+
+// NEW (recommended)
+class PaymentService implements LifeCycle {
+    // Remove the trait
+    
+    public function process($amount) {
+        runHook($this, 'payment.begin', $amount);
+    }
+}
+```
+
+#### 2. **Leverage External Hook Execution**
+```php
+// Now you can execute hooks from anywhere!
+
+// In a controller
+public function processPayment(Request $request) {
+    $amount = $request->input('amount');
+    
+    // Execute hooks without instantiating the service
+    runHook(PaymentService::class, 'payment.begin', $amount);
+    
+    // Then process normally
+    $service = app(PaymentService::class);
+    return $service->process($amount);
+}
+
+// In tests
+public function test_payment_hooks() {
+    $amount = 100.00;
+    
+    // Add test-specific hooks
+    $testHook = new TestPaymentHook();
+    addHook(PaymentService::class, $testHook);
+    
+    // Execute and verify
+    runHook(PaymentService::class, 'payment.begin', $amount);
+    
+    $this->assertTrue($testHook->wasExecuted());
+}
+```
 
 ## ⚙️ Configuration
 
@@ -186,6 +243,67 @@ graph TD
     L -->|Auto-discovers| K
 ```
 
+## 🆕 New API Features (v2.0)
+
+### 🚀 **Global Helper Functions**
+Execute hooks from anywhere - inside or outside classes!
+
+```php
+// Inside a class
+class PaymentService implements LifeCycle {
+    public function process($amount) {
+        runHook($this, 'payment.begin', $amount);
+        // or
+        runHook(self::class, 'payment.begin', $amount);
+    }
+}
+
+// Outside a class (e.g., in a controller)
+Route::post('/payment', function (Request $request) {
+    $amount = $request->input('amount');
+    
+    // Execute hooks externally
+    runHook(PaymentService::class, 'payment.begin', $amount);
+    
+    return response()->json(['status' => 'processed']);
+});
+```
+
+### 🎯 **No More Trait Required**
+Classes are cleaner - just implement the interface:
+
+```php
+// OLD WAY (still works for backward compatibility)
+class OldService implements LifeCycle {
+    use HasLifeCycleHooks; // Required trait
+    
+    public function process() {
+        $this->runHook('event', $data);
+    }
+}
+
+// NEW WAY (recommended)
+class NewService implements LifeCycle {
+    // No trait needed! 🎉
+    
+    public function process() {
+        runHook($this, 'event', $data);
+    }
+}
+```
+
+### 🔄 **Dynamic Hook Management**
+Add or remove hooks programmatically:
+
+```php
+// Add hooks dynamically
+$customHook = new MyCustomHook();
+addHook(PaymentService::class, $customHook);
+
+// Remove all hooks for a specific lifecycle
+removeHooksFor(PaymentService::class, 'payment.failed');
+```
+
 ## 🎯 Key Features
 
 ### 🔧 **Modular Development**
@@ -203,17 +321,33 @@ public function getSeverity(): string { return 'optional'; }
 ```
 
 ### 🔍 **Auto-Discovery**
-Drop hooks in `app/Hooks/ServiceName/` and they're automatically loaded:
+Drop hooks in `app/Hooks/ServiceName/` and they're automatically loaded. 
+
+**NEW: Organize by Lifecycle!** 🎯
 ```
 app/Hooks/
 ├── PaymentService/
-│   ├── EmailNotificationHook.php
-│   ├── FraudDetectionHook.php
-│   └── AnalyticsHook.php
+│   ├── PaymentBegin/              # paymentBegin lifecycle
+│   │   ├── ValidateAmount.php
+│   │   └── ApplyDiscount.php
+│   ├── payment_complete/          # payment_complete lifecycle  
+│   │   ├── SendEmail.php
+│   │   └── UpdateAnalytics.php
+│   ├── PaymentFailed/             # payment.failed lifecycle
+│   │   └── LogError.php
+│   └── FraudDetectionHook.php     # Classic structure (still works)
 └── OrderService/
-    ├── InventoryUpdateHook.php
-    └── ShippingNotificationHook.php
+    ├── before_create/             # before_create lifecycle
+    │   └── ValidateInventory.php
+    └── InventoryUpdateHook.php    # Classic structure
 ```
+
+**Flexible Naming:** The system automatically converts between formats:
+- `paymentBegin` → `PaymentBegin/` or `payment_begin/` or `Payment_Begin/`
+- `payment_complete` → `PaymentComplete/` or `Payment_Complete/`
+- `payment.failed` → `PaymentFailed/` or `payment_failed/` or `Payment_Failed/`
+
+⚠️ **Important:** Folder names never contain dots to avoid filesystem issues.
 
 ### ✅ **Argument Validation**
 Hooks receive exactly what they expect:
@@ -250,11 +384,10 @@ public array $hookOrder = [
 namespace App\Services;
 
 use PhpDiffused\Lifecycle\Contracts\LifeCycle;
-use PhpDiffused\Lifecycle\Support\HasLifeCycleHooks;
 
 class OrderService implements LifeCycle
 {
-    use HasLifeCycleHooks;
+    // No trait needed! 🎉
     
     public static function lifeCycle(): array
     {
@@ -268,13 +401,13 @@ class OrderService implements LifeCycle
     
     public function createOrder(int $userId, array $products): string
     {
-        $this->runHook('before_create', $userId, $products);
+        runHook($this, 'before_create', $userId, $products);
         
         // Use potentially modified products
         $orderId = $this->processOrder($userId, $products);
         $total = $this->calculateTotal($products);
         
-        $this->runHook('after_create', $userId, $orderId, $total);
+        runHook($this, 'after_create', $userId, $orderId, $total);
         
         return $orderId;
     }
@@ -326,7 +459,73 @@ class WelcomeEmailHook implements LifeCycleHook
 }
 ```
 
-### 3. Define Hook Order (Optional)
+### 3. Organize Hooks by Lifecycle (NEW!)
+
+Create organized, maintainable hook structures:
+
+```php
+// Your service defines lifecycles
+class PaymentService implements LifeCycle {
+    public static function lifeCycle(): array {
+        return [
+            'paymentBegin' => ['amount', 'currency', 'userId'],
+            'payment_complete' => ['transactionId', 'amount'],
+            'payment.failed' => ['error', 'userId'],
+        ];
+    }
+}
+```
+
+**Option 1: Organize by Lifecycle Folders**
+```
+app/Hooks/PaymentService/
+├── PaymentBegin/           # Hooks for 'paymentBegin'
+│   ├── ValidateAmount.php
+│   └── ApplyDiscount.php
+├── payment_complete/       # Hooks for 'payment_complete'
+│   ├── SendEmail.php
+│   └── UpdateStats.php
+└── PaymentFailed/          # Hooks for 'payment.failed'
+    └── LogError.php
+```
+
+**Option 2: Classic Structure (still works)**
+```
+app/Hooks/PaymentService/
+├── ValidateAmountHook.php
+├── ApplyDiscountHook.php
+├── SendEmailHook.php
+└── LogErrorHook.php
+```
+
+### 4. Execute Hooks Externally
+
+Execute hooks from anywhere - controllers, commands, tests:
+
+```php
+<?php
+
+namespace App\Http\Controllers;
+
+class PaymentController extends Controller
+{
+    public function process(Request $request)
+    {
+        $amount = $request->input('amount');
+        $currency = $request->input('currency');
+        $userId = auth()->id();
+        
+        // Execute hooks without instantiating the service!
+        runHook(PaymentService::class, 'paymentBegin', $amount, $currency, $userId);
+        
+        // Process payment...
+        $service = app(PaymentService::class);
+        return $service->processPayment($amount, $currency, $userId);
+    }
+}
+```
+
+### 5. Define Hook Order (Optional)
 Control the execution order of your hooks:
 
 ```bash
@@ -419,7 +618,7 @@ public function processPayment(int $userId, float $amount): array
     $originalAmount = $amount;
     
     // Pass variables directly - they will be modified by reference
-    $this->runHook('before_payment', $userId, $amount);
+    runHook($this, 'before_payment', $userId, $amount);
     
     // Use modified values directly
     return [

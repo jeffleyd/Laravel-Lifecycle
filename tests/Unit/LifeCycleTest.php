@@ -2,31 +2,28 @@
 
 namespace PhpDiffused\Lifecycle\Tests\Unit;
 
-use PHPUnit\Framework\TestCase;
+use PhpDiffused\Lifecycle\Tests\TestCase;
 use PhpDiffused\Lifecycle\Contracts\LifeCycle;
 use PhpDiffused\Lifecycle\Contracts\LifeCycleHook;
-use PhpDiffused\Lifecycle\Support\HasLifeCycleHooks;
 use PhpDiffused\Lifecycle\Exceptions\InvalidLifeCycleException;
 use PhpDiffused\Lifecycle\Exceptions\HookExecutionException;
 
 class LifeCycleTest extends TestCase
 {
-    private TestService $service;
-    
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new TestService();
+        $this->manager->setHooksFor(TestService::class, collect());
     }
     
     public function test_can_run_hooks_for_valid_lifecycle(): void
     {
         $hook = new TestHook();
-        $this->service->addHook($hook);
+        addHook(TestService::class, $hook);
         
         $param1 = 'value1';
         $param2 = 'value2';
-        $this->service->runHook('test_lifecycle', $param1, $param2);
+        runHook(TestService::class, 'test_lifecycle', $param1, $param2);
         
         $this->assertTrue($hook->wasExecuted());
         $this->assertEquals([
@@ -40,7 +37,7 @@ class LifeCycleTest extends TestCase
         $this->expectException(InvalidLifeCycleException::class);
         $this->expectExceptionMessage("LifeCycle 'invalid_lifecycle' is not defined");
         
-        $this->service->runHook('invalid_lifecycle');
+        runHook(TestService::class, 'invalid_lifecycle');
     }
     
     public function test_throws_exception_for_missing_arguments(): void
@@ -49,31 +46,30 @@ class LifeCycleTest extends TestCase
         $this->expectExceptionMessage("LifeCycle 'test_lifecycle' expects arguments: param2");
         
         $param1 = 'value1';
-        // Missing param2
-        $this->service->runHook('test_lifecycle', $param1);
+        runHook(TestService::class, 'test_lifecycle', $param1);
     }
     
     public function test_critical_hook_failure_throws_exception(): void
     {
         $hook = new CriticalFailingHook();
-        $this->service->addHook($hook);
+        addHook(TestService::class, $hook);
         
         $this->expectException(HookExecutionException::class);
         $this->expectExceptionMessage("Critical hook failed in lifecycle 'test_lifecycle'");
         
         $param1 = 'value1';
         $param2 = 'value2';
-        $this->service->runHook('test_lifecycle', $param1, $param2);
+        runHook(TestService::class, 'test_lifecycle', $param1, $param2);
     }
     
     public function test_optional_hook_failure_does_not_throw_exception(): void
     {
         $hook = new OptionalFailingHook();
-        $this->service->addHook($hook);
+        addHook(TestService::class, $hook);
         
         $param1 = 'value1';
         $param2 = 'value2';
-        $this->service->runHook('test_lifecycle', $param1, $param2);
+        runHook(TestService::class, 'test_lifecycle', $param1, $param2);
         
         $this->assertTrue(true);
     }
@@ -83,14 +79,14 @@ class LifeCycleTest extends TestCase
         $hook1 = new TestHook();
         $hook2 = new TestHook();
         
-        $this->service->addHook($hook1);
-        $this->service->addHook($hook2);
+        addHook(TestService::class, $hook1);
+        addHook(TestService::class, $hook2);
         
-        $this->assertCount(2, $this->service->getHooks());
+        $this->assertCount(2, $this->manager->getHooksFor(TestService::class));
         
-        $this->service->removeHooksFor('test_lifecycle');
+        removeHooksFor(TestService::class, 'test_lifecycle');
         
-        $this->assertCount(0, $this->service->getHooks());
+        $this->assertCount(0, $this->manager->getHooksFor(TestService::class));
     }
     
     public function test_hooks_are_filtered_by_lifecycle(): void
@@ -98,22 +94,38 @@ class LifeCycleTest extends TestCase
         $testHook = new TestHook();
         $otherHook = new OtherLifeCycleHook();
         
-        $this->service->addHook($testHook);
-        $this->service->addHook($otherHook);
+        addHook(TestService::class, $testHook);
+        addHook(TestService::class, $otherHook);
         
         $param1 = 'value1';
         $param2 = 'value2';
-        $this->service->runHook('test_lifecycle', $param1, $param2);
+        runHook(TestService::class, 'test_lifecycle', $param1, $param2);
         
         $this->assertTrue($testHook->wasExecuted());
         $this->assertFalse($otherHook->wasExecuted());
+    }
+    
+    public function test_can_run_hooks_with_instance(): void
+    {
+        $hook = new TestHook();
+        $service = new TestService();
+        
+        addHook($service, $hook);
+        
+        $param1 = 'value1';
+        $param2 = 'value2';
+        runHook($service, 'test_lifecycle', $param1, $param2);
+        
+        $this->assertTrue($hook->wasExecuted());
+        $this->assertEquals([
+            'param1' => 'value1',
+            'param2' => 'value2'
+        ], $hook->getReceivedArgs());
     }
 }
 
 class TestService implements LifeCycle
 {
-    use HasLifeCycleHooks;
-    
     public static function lifeCycle(): array
     {
         return [

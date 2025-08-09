@@ -27,18 +27,15 @@ class ClearHooksCacheCommand extends Command
     public function handle(): int
     {
         $cacheKey = config('lifecycle.cache.key', 'lifecycle.hooks');
-        
-        // Clear all cached hooks
+
         Cache::forget($cacheKey);
-        
-        // Clear specific service caches if they exist
+
         $deleted = 0;
         $tags = Cache::tags(['lifecycle']);
         if (method_exists($tags, 'flush')) {
             $tags->flush();
             $deleted = 'all tagged';
         } else {
-            // Fallback: try to clear by pattern if cache driver supports it
             try {
                 $keys = Cache::getStore()->keys($cacheKey . '.*');
                 foreach ($keys as $key) {
@@ -46,7 +43,6 @@ class ClearHooksCacheCommand extends Command
                     $deleted++;
                 }
             } catch (\Exception $e) {
-                // Some cache drivers don't support pattern deletion
                 Cache::forget($cacheKey);
                 $deleted = 1;
             }

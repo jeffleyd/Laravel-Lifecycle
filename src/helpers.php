@@ -1,0 +1,64 @@
+<?php
+
+use PhpDiffused\Lifecycle\LifeCycleManager;
+
+if (!function_exists('runHook')) {
+    /**
+     * Run lifecycle hooks for a class or instance
+     * 
+     * @param string|object $target Class name (e.g., Payment::class) or instance (e.g., $this or self)
+     * @param string $lifeCycle The lifecycle event name (e.g., 'payment.begin')
+     * @param mixed ...$args Arguments to pass to the hooks (passed by reference)
+     * 
+     * @example Inside a class:
+     *   runHook(self::class, 'payment.begin', $total, $discount);
+     *   runHook($this, 'payment.begin', $total, $discount);
+     * 
+     * @example Outside a class:
+     *   runHook(Payment::class, 'payment.begin', $total, $discount);
+     *   runHook($paymentInstance, 'payment.begin', $total, $discount);
+     * 
+     * @throws \PhpDiffused\Lifecycle\Exceptions\InvalidLifeCycleException
+     * @throws \PhpDiffused\Lifecycle\Exceptions\HookExecutionException
+     */
+    function runHook($target, string $lifeCycle, &...$args): void
+    {
+        /** @var LifeCycleManager $manager */
+        $manager = app(LifeCycleManager::class);
+        $manager->runHook($target, $lifeCycle, ...$args);
+    }
+}
+
+if (!function_exists('addHook')) {
+    /**
+     * Add a hook dynamically to a class
+     * 
+     * @param string|object $target Class name or instance
+     * @param \PhpDiffused\Lifecycle\Contracts\LifeCycleHook $hook
+     */
+    function addHook($target, \PhpDiffused\Lifecycle\Contracts\LifeCycleHook $hook): void
+    {
+        $className = is_object($target) ? get_class($target) : $target;
+        
+        /** @var LifeCycleManager $manager */
+        $manager = app(LifeCycleManager::class);
+        $manager->addHook($className, $hook);
+    }
+}
+
+if (!function_exists('removeHooksFor')) {
+    /**
+     * Remove all hooks for a specific lifecycle in a class
+     * 
+     * @param string|object $target Class name or instance
+     * @param string $lifeCycle
+     */
+    function removeHooksFor($target, string $lifeCycle): void
+    {
+        $className = is_object($target) ? get_class($target) : $target;
+        
+        /** @var LifeCycleManager $manager */
+        $manager = app(LifeCycleManager::class);
+        $manager->removeHooksFor($className, $lifeCycle);
+    }
+}

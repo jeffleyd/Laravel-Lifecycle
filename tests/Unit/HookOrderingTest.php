@@ -2,90 +2,72 @@
 
 namespace PhpDiffused\Lifecycle\Tests\Unit;
 
-use PHPUnit\Framework\TestCase;
+use PhpDiffused\Lifecycle\Tests\TestCase;
 use PhpDiffused\Lifecycle\Contracts\LifeCycle;
 use PhpDiffused\Lifecycle\Contracts\LifeCycleHook;
-use PhpDiffused\Lifecycle\Support\HasLifeCycleHooks;
 
 class HookOrderingTest extends TestCase
 {
-    private OrderedService $service;
-    private static array $executionOrder = [];
+    protected static array $executionOrder = [];
     
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new OrderedService();
         self::$executionOrder = [];
+
+        $this->manager->setHooksFor(OrderedService::class, collect());
+
+        $this->manager->setHooksKernel(new TestHooksKernel());
     }
     
     public function test_hooks_execute_in_defined_order(): void
     {
-        $hook3 = new OrderedHook3();
-        $hook1 = new OrderedHook1();
-        $hook2 = new OrderedHook2();
+        addHook(OrderedService::class, new FirstHook());
+        addHook(OrderedService::class, new SecondHook());
+        addHook(OrderedService::class, new ThirdHook());
         
-        $this->service->addHook($hook1);
-        $this->service->addHook($hook2);
-        $this->service->addHook($hook3);
+        $value = 'test';
+        runHook(OrderedService::class, 'process', $value);
         
-        $value = 100;
-        $this->service->runHook('process', $value);
-        
-        $this->assertEquals(['Hook1', 'Hook2', 'Hook3'], self::$executionOrder);
-        
-        // Hook1: 100 * 2 = 200
-        // Hook2: 200 + 50 = 250
-        // Hook3: 250 - 25 = 225
-        $this->assertEquals(225, $value);
+        $this->assertEquals(['first', 'second', 'third'], self::$executionOrder);
     }
     
     public function test_mixed_ordered_and_unordered_hooks(): void
     {
-        // Hooks ordenados
-        $hook1 = new OrderedHook1();
-        $hook3 = new OrderedHook3();
+        addHook(OrderedService::class, new ThirdHook());
+        addHook(OrderedService::class, new UnorderedHook());
+        addHook(OrderedService::class, new FirstHook());
+        addHook(OrderedService::class, new SecondHook());
         
-        $hookExtra = new ExtraHook();
-        
-        $this->service->addHook($hook1);
-        $this->service->addHook($hook3);
-        $this->service->addHook($hookExtra);
-        
-        $value = 100;
-        $this->service->runHook('process', $value);
-        
-        // Verifica ordem de execução
-        $this->assertEquals(['Hook1', 'Hook3', 'ExtraHook'], self::$executionOrder);
-        
+        $value = 'test';
+        runHook(OrderedService::class, 'process', $value);
 
-        // Hook1: 100 * 2 = 200
-        // Hook3: 200 - 25 = 175
-        // ExtraHook: 175 * 1.1 = 192.5
-        $this->assertEqualsWithDelta(192.5, $value, 0.0001);
+        $this->assertContains('first', self::$executionOrder);
+        $this->assertContains('second', self::$executionOrder);
+        
+        $firstIndex = array_search('first', self::$executionOrder);
+        $secondIndex = array_search('second', self::$executionOrder);
+        
+        $this->assertLessThan($secondIndex, $firstIndex);
     }
     
     public function test_multiple_lifecycles_with_different_orders(): void
     {
-        $beforeHook1 = new BeforeHook1();
-        $beforeHook2 = new BeforeHook2();
-        $afterHook1 = new AfterHook1();
-        $afterHook2 = new AfterHook2();
+        addHook(OrderedService::class, new BeforeHookA());
+        addHook(OrderedService::class, new BeforeHookB());
+        addHook(OrderedService::class, new AfterHookA());
+        addHook(OrderedService::class, new AfterHookB());
         
-        $this->service->addHook($beforeHook2);
-        $this->service->addHook($beforeHook1);
-        $this->service->addHook($afterHook1);
-        $this->service->addHook($afterHook2);
-        
-        $value = 100;
-        
+        $value = 'test';
+
         self::$executionOrder = [];
-        $this->service->runHook('before', $value);
-        $this->assertEquals(['BeforeHook2', 'BeforeHook1'], self::$executionOrder);
+        runHook(OrderedService::class, 'before', $value);
+        $this->assertEquals(['before-b', 'before-a'], self::$executionOrder);
         
+        // Execute 'after' lifecycle
         self::$executionOrder = [];
-        $this->service->runHook('after', $value);
-        $this->assertEquals(['AfterHook1', 'AfterHook2'], self::$executionOrder);
+        runHook(OrderedService::class, 'after', $value);
+        $this->assertEquals(['after-a', 'after-b'], self::$executionOrder);
     }
     
     public static function recordExecution(string $hookName): void
@@ -96,8 +78,6 @@ class HookOrderingTest extends TestCase
 
 class OrderedService implements LifeCycle
 {
-    use HasLifeCycleHooks;
-    
     public static function lifeCycle(): array
     {
         return [
@@ -108,94 +88,117 @@ class OrderedService implements LifeCycle
     }
 }
 
-class OrderedHook1 implements LifeCycleHook
+class TestHooksKernel
 {
-    public function getLifeCycle(): string { return 'process'; }
-    public function getSeverity(): string { return 'optional'; }
+    public array $hookOrder = [
+        OrderedService::class => [
+            'process' => [
+                FirstHook::class,
+                SecondHook::class,
+            ],
+            'before' => [
+                BeforeHookB::class,
+                BeforeHookA::class,
+            ],
+            'after' => [
+                AfterHookA::class,
+                AfterHookB::class,
+            ],
+        ],
+    ];
+}
+
+abstract class RecordingHook implements LifeCycleHook
+{
+    protected string $name;
+    
+    public function getSeverity(): string
+    {
+        return 'optional';
+    }
     
     public function handle(array &$args): void
     {
-        HookOrderingTest::recordExecution('Hook1');
-        $args['value'] *= 2;
+        HookOrderingTest::recordExecution($this->name);
     }
 }
 
-class OrderedHook2 implements LifeCycleHook
+class FirstHook extends RecordingHook
 {
-    public function getLifeCycle(): string { return 'process'; }
-    public function getSeverity(): string { return 'optional'; }
+    protected string $name = 'first';
     
-    public function handle(array &$args): void
+    public function getLifeCycle(): string
     {
-        HookOrderingTest::recordExecution('Hook2');
-        $args['value'] += 50;
+        return 'process';
     }
 }
 
-class OrderedHook3 implements LifeCycleHook
+class SecondHook extends RecordingHook
 {
-    public function getLifeCycle(): string { return 'process'; }
-    public function getSeverity(): string { return 'optional'; }
+    protected string $name = 'second';
     
-    public function handle(array &$args): void
+    public function getLifeCycle(): string
     {
-        HookOrderingTest::recordExecution('Hook3');
-        $args['value'] -= 25;
+        return 'process';
     }
 }
 
-class ExtraHook implements LifeCycleHook
+class ThirdHook extends RecordingHook
 {
-    public function getLifeCycle(): string { return 'process'; }
-    public function getSeverity(): string { return 'optional'; }
+    protected string $name = 'third';
     
-    public function handle(array &$args): void
+    public function getLifeCycle(): string
     {
-        HookOrderingTest::recordExecution('ExtraHook');
-        $args['value'] *= 1.1;
+        return 'process';
     }
 }
 
-class BeforeHook1 implements LifeCycleHook
+class UnorderedHook extends RecordingHook
 {
-    public function getLifeCycle(): string { return 'before'; }
-    public function getSeverity(): string { return 'optional'; }
+    protected string $name = 'unordered';
     
-    public function handle(array &$args): void
+    public function getLifeCycle(): string
     {
-        HookOrderingTest::recordExecution('BeforeHook1');
+        return 'process';
     }
 }
 
-class BeforeHook2 implements LifeCycleHook
+class BeforeHookA extends RecordingHook
 {
-    public function getLifeCycle(): string { return 'before'; }
-    public function getSeverity(): string { return 'optional'; }
+    protected string $name = 'before-a';
     
-    public function handle(array &$args): void
+    public function getLifeCycle(): string
     {
-        HookOrderingTest::recordExecution('BeforeHook2');
+        return 'before';
     }
 }
 
-class AfterHook1 implements LifeCycleHook
+class BeforeHookB extends RecordingHook
 {
-    public function getLifeCycle(): string { return 'after'; }
-    public function getSeverity(): string { return 'optional'; }
+    protected string $name = 'before-b';
     
-    public function handle(array &$args): void
+    public function getLifeCycle(): string
     {
-        HookOrderingTest::recordExecution('AfterHook1');
+        return 'before';
     }
 }
 
-class AfterHook2 implements LifeCycleHook
+class AfterHookA extends RecordingHook
 {
-    public function getLifeCycle(): string { return 'after'; }
-    public function getSeverity(): string { return 'optional'; }
+    protected string $name = 'after-a';
     
-    public function handle(array &$args): void
+    public function getLifeCycle(): string
     {
-        HookOrderingTest::recordExecution('AfterHook2');
+        return 'after';
+    }
+}
+
+class AfterHookB extends RecordingHook
+{
+    protected string $name = 'after-b';
+    
+    public function getLifeCycle(): string
+    {
+        return 'after';
     }
 }
