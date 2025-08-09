@@ -10,8 +10,6 @@
 
 > **Diffused Programming**: Allow different developers (including juniors) to inject business logic into specific lifecycle points without modifying core classes.
 
-> 🎉 **v2.0 Released!** Now with global helper functions and no trait required! Fully backward compatible - [see migration guide](#-migration-guide-v1-to-v2)
-
 ---
 
 ## 🧭 Philosophy & Best Practices
@@ -109,34 +107,7 @@ This will create a `config/lifecycle.php` file where you can customize:
 - **Cache**: Configure hook caching for better performance
 - **Error handling**: Configure error logging and handling
 
-## 🔄 Migration Guide (v1 to v2)
-
-### Step-by-Step Migration
-
-The new API is **fully backward compatible**, so you can migrate gradually:
-
-#### 1. **Update Your Services (Optional)**
-```php
-// OLD (still works)
-class PaymentService implements LifeCycle {
-    use HasLifeCycleHooks;
-    
-    public function process($amount) {
-        $this->runHook('payment.begin', $amount);
-    }
-}
-
-// NEW (recommended)
-class PaymentService implements LifeCycle {
-    // Remove the trait
-    
-    public function process($amount) {
-        runHook($this, 'payment.begin', $amount);
-    }
-}
-```
-
-#### 2. **Leverage External Hook Execution**
+#### **Leverage External Hook Execution**
 ```php
 // Now you can execute hooks from anywhere!
 
@@ -241,55 +212,6 @@ graph TD
     L[ServiceProvider] -->|Auto-discovers| G
     L -->|Auto-discovers| I  
     L -->|Auto-discovers| K
-```
-
-## 🆕 New API Features (v2.0)
-
-### 🚀 **Global Helper Functions**
-Execute hooks from anywhere - inside or outside classes!
-
-```php
-// Inside a class
-class PaymentService implements LifeCycle {
-    public function process($amount) {
-        runHook($this, 'payment.begin', $amount);
-        // or
-        runHook(self::class, 'payment.begin', $amount);
-    }
-}
-
-// Outside a class (e.g., in a controller)
-Route::post('/payment', function (Request $request) {
-    $amount = $request->input('amount');
-    
-    // Execute hooks externally
-    runHook(PaymentService::class, 'payment.begin', $amount);
-    
-    return response()->json(['status' => 'processed']);
-});
-```
-
-### 🎯 **No More Trait Required**
-Classes are cleaner - just implement the interface:
-
-```php
-// OLD WAY (still works for backward compatibility)
-class OldService implements LifeCycle {
-    use HasLifeCycleHooks; // Required trait
-    
-    public function process() {
-        $this->runHook('event', $data);
-    }
-}
-
-// NEW WAY (recommended)
-class NewService implements LifeCycle {
-    // No trait needed! 🎉
-    
-    public function process() {
-        runHook($this, 'event', $data);
-    }
-}
 ```
 
 ### 🔄 **Dynamic Hook Management**
