@@ -1,0 +1,34 @@
+<?php
+
+namespace App\Hooks;
+
+class Kernel
+{
+    /**
+     * Hook execution order and custom hook paths.
+     * 
+     * @var array<class-string, array<string, array<class-string>>>
+     */
+    public array $hooks = [
+        // Example with execution order:
+        // \App\Services\PaymentService::class => [
+        //     'before_payment' => [
+        //         \App\Hooks\PaymentService\ValidateAmountHook::class,
+        //         \App\Hooks\PaymentService\FraudDetectionHook::class,
+        //         \App\Hooks\PaymentService\ApplyDiscountHook::class,
+        //     ],
+        //     'after_payment' => [
+        //         \App\Hooks\PaymentService\SendEmailHook::class,
+        //         \App\Hooks\PaymentService\UpdateAnalyticsHook::class,
+        //     ]
+        // ],
+        
+        // Example with custom hook paths (if not using auto-discovery):
+        // \App\Services\OrderService::class => [
+        //     'order_created' => [
+        //         \Custom\Path\To\MyHook::class,
+        //         \Another\Custom\Hook::class,
+        //     ]
+        // ],
+    ];
+}

@@ -70,7 +70,7 @@ class LifeCycleManager
 
         $lifecycleHooks = $hooks->filter(fn(LifeCycleHook $hook) => $hook->getLifeCycle() === $lifeCycle);
 
-        if ($this->provider->hooksKernel && isset($this->provider->hooksKernel->hookOrder[$className][$lifeCycle])) {
+        if ($this->provider->hooksKernel && isset($this->provider->hooksKernel->hooks[$className][$lifeCycle])) {
             $lifecycleHooks = $this->applyHookOrdering($lifecycleHooks, $className, $lifeCycle);
         }
 
@@ -159,7 +159,7 @@ class LifeCycleManager
     protected function applyHookOrdering(Collection $hooks, string $className, string $lifeCycle): Collection
     {
         $orderedHooks = collect();
-        $hookOrder = $this->provider->hooksKernel->hookOrder[$className][$lifeCycle] ?? [];
+        $hookOrder = $this->provider->hooksKernel->hooks[$className][$lifeCycle] ?? [];
 
         foreach ($hookOrder as $orderedHookClass) {
             $hook = $hooks->first(fn(LifeCycleHook $h) => get_class($h) === $orderedHookClass);

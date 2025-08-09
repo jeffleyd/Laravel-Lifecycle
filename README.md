@@ -243,33 +243,21 @@ public function getSeverity(): string { return 'optional'; }
 ```
 
 ### 🔍 **Auto-Discovery**
-Drop hooks in `app/Hooks/ServiceName/` and they're automatically loaded. 
+Drop hooks in `app/Hooks/ServiceName/` and they're automatically loaded.
 
-**NEW: Organize by Lifecycle!** 🎯
 ```
 app/Hooks/
 ├── PaymentService/
-│   ├── PaymentBegin/              # paymentBegin lifecycle
-│   │   ├── ValidateAmount.php
-│   │   └── ApplyDiscount.php
-│   ├── payment_complete/          # payment_complete lifecycle  
-│   │   ├── SendEmail.php
-│   │   └── UpdateAnalytics.php
-│   ├── PaymentFailed/             # payment.failed lifecycle
-│   │   └── LogError.php
-│   └── FraudDetectionHook.php     # Classic structure (still works)
+│   ├── ValidateAmountHook.php
+│   ├── ApplyDiscountHook.php
+│   ├── SendEmailHook.php
+│   └── FraudDetectionHook.php
 └── OrderService/
-    ├── before_create/             # before_create lifecycle
-    │   └── ValidateInventory.php
-    └── InventoryUpdateHook.php    # Classic structure
+    ├── ValidateInventoryHook.php
+    └── InventoryUpdateHook.php
 ```
 
-**Flexible Naming:** The system automatically converts between formats:
-- `paymentBegin` → `PaymentBegin/` or `payment_begin/` or `Payment_Begin/`
-- `payment_complete` → `PaymentComplete/` or `Payment_Complete/`
-- `payment.failed` → `PaymentFailed/` or `payment_failed/` or `Payment_Failed/`
-
-⚠️ **Important:** Folder names never contain dots to avoid filesystem issues.
+Hooks are discovered automatically based on the service class name.
 
 ### ✅ **Argument Validation**
 Hooks receive exactly what they expect:
@@ -308,9 +296,7 @@ namespace App\Services;
 use PhpDiffused\Lifecycle\Contracts\LifeCycle;
 
 class OrderService implements LifeCycle
-{
-    // No trait needed! 🎉
-    
+{    
     public static function lifeCycle(): array
     {
         return [
@@ -398,20 +384,7 @@ class PaymentService implements LifeCycle {
 }
 ```
 
-**Option 1: Organize by Lifecycle Folders**
-```
-app/Hooks/PaymentService/
-├── PaymentBegin/           # Hooks for 'paymentBegin'
-│   ├── ValidateAmount.php
-│   └── ApplyDiscount.php
-├── payment_complete/       # Hooks for 'payment_complete'
-│   ├── SendEmail.php
-│   └── UpdateStats.php
-└── PaymentFailed/          # Hooks for 'payment.failed'
-    └── LogError.php
-```
-
-**Option 2: Classic Structure (still works)**
+**Create Your Hooks**
 ```
 app/Hooks/PaymentService/
 ├── ValidateAmountHook.php
@@ -454,11 +427,11 @@ Control the execution order of your hooks:
 php artisan vendor:publish --tag=lifecycle-kernel
 ```
 
-Edit `app/Hooks/HooksKernel.php`:
+Edit `app/Hooks/Kernel.php`:
 ```php
-class HooksKernel
+class Kernel
 {
-    public array $hookOrder = [
+    public array $hooks = [
         \App\Services\PaymentService::class => [
             'before_payment' => [
                 \App\Hooks\PaymentService\ValidateAmountHook::class,

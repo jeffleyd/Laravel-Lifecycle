@@ -90,7 +90,7 @@ class OrderedService implements LifeCycle
 
 class TestHooksKernel
 {
-    public array $hookOrder = [
+    public array $hooks = [
         OrderedService::class => [
             'process' => [
                 FirstHook::class,

@@ -16,7 +16,7 @@ class LifeCycleServiceProvider extends ServiceProvider
     protected array $hookCache = [];
     
     /**
-     * @var \App\Hooks\HooksKernel|null
+     * @var \App\Hooks\Kernel|null
      */
     public $hooksKernel = null;
     
@@ -26,8 +26,8 @@ class LifeCycleServiceProvider extends ServiceProvider
             __DIR__.'/../config/lifecycle.php', 'lifecycle'
         );
         
-        if (class_exists(\App\Hooks\HooksKernel::class)) {
-            $this->hooksKernel = new \App\Hooks\HooksKernel();
+        if (class_exists(\App\Hooks\Kernel::class)) {
+            $this->hooksKernel = new \App\Hooks\Kernel();
         }
 
         $this->app->singleton(LifeCycleManager::class, function ($app) {
@@ -46,7 +46,7 @@ class LifeCycleServiceProvider extends ServiceProvider
     {
         if ($this->app->runningInConsole()) {            
             $this->publishes([
-                __DIR__.'/../stubs/HooksKernel.stub' => app_path('Hooks/HooksKernel.php'),
+                __DIR__.'/../stubs/Kernel.stub' => app_path('Hooks/Kernel.php'),
             ], 'lifecycle-kernel');
             
             $this->publishes([
@@ -91,10 +91,7 @@ class LifeCycleServiceProvider extends ServiceProvider
         $discoveryPath = config('lifecycle.discovery_path', app_path('Hooks'));
         $hookPath = $discoveryPath . DIRECTORY_SEPARATOR . $className;
 
-        $availableHooks = array_merge(
-            $this->discoverHooksInPath($hookPath, $className),
-            $this->discoverHooksInLifecycleFolders($hookPath, $className, $class)
-        );
+        $availableHooks = $this->discoverHooksInPath($hookPath, $className);
         
         if (!$this->hooksKernel || empty($availableHooks)) {
             foreach ($availableHooks as $hookClass => $hookInstance) {
@@ -147,95 +144,7 @@ class LifeCycleServiceProvider extends ServiceProvider
         return $availableHooks;
     }
     
-    /**
-     * Discover hooks in lifecycle-specific folders (new structure)
-     * 
-     * @param string $hookPath
-     * @param string $className
-     * @param string $fullClassName
-     * @return array
-     */
-    protected function discoverHooksInLifecycleFolders(string $hookPath, string $className, string $fullClassName): array
-    {
-        $availableHooks = [];
-        
-        if (!File::isDirectory($hookPath)) {
-            return $availableHooks;
-        }
 
-        if (!is_subclass_of($fullClassName, \PhpDiffused\Lifecycle\Contracts\LifeCycle::class)) {
-            return $availableHooks;
-        }
-        
-        $lifecycles = $fullClassName::lifeCycle();
-        
-        foreach (array_keys($lifecycles) as $lifecycle) {
-            $lifecycleFolders = $this->getLifecycleFolderNames($lifecycle);
-            
-            foreach ($lifecycleFolders as $folderName) {
-                $lifecyclePath = $hookPath . DIRECTORY_SEPARATOR . $folderName;
-                
-                if (File::isDirectory($lifecyclePath)) {
-                    $files = File::allFiles($lifecyclePath);
-                    
-                    foreach ($files as $file) {
-                        if ($file->getExtension() !== 'php') {
-                            continue;
-                        }
-                        
-                        $relativePath = str_replace(['/', '.php'], ['\\', ''], $file->getRelativePathname());
-                        $hookClass = "App\\Hooks\\{$className}\\{$relativePath}";
-                        
-                        if (class_exists($hookClass) && is_subclass_of($hookClass, LifeCycleHook::class)) {
-                            $availableHooks[$hookClass] = $this->app->make($hookClass);
-                        }
-                    }
-                }
-            }
-        }
-        
-        return $availableHooks;
-    }
-    
-    /**
-     * Convert lifecycle name to possible folder names
-     * 
-     * @param string $lifecycle
-     * @return array
-     */
-    protected function getLifecycleFolderNames(string $lifecycle): array
-    {
-        $folderNames = [];
-
-        if (strpos($lifecycle, '.') !== false) {
-            $folderNames[] = str_replace('.', '', ucwords($lifecycle, '.'));
-            $folderNames[] = str_replace('.', '_', ucwords($lifecycle, '.'));
-            $folderNames[] = str_replace('.', '_', $lifecycle);
-        }
-
-        if (strpos($lifecycle, '_') !== false) {
-            $folderNames[] = str_replace('_', '', ucwords($lifecycle, '_'));
-            $folderNames[] = ucwords($lifecycle, '_');
-            $folderNames[] = $lifecycle;
-        }
-
-        if (preg_match('/[a-z][A-Z]/', $lifecycle)) {
-            $snakeCase = strtolower(preg_replace('/([a-z])([A-Z])/', '$1_$2', $lifecycle));
-            $folderNames[] = $snakeCase;
-            $folderNames[] = ucwords($snakeCase, '_');
-            $folderNames[] = $lifecycle;
-        }
-
-        if (!strpos($lifecycle, '.') && !strpos($lifecycle, '_') && !preg_match('/[a-z][A-Z]/', $lifecycle)) {
-            $folderNames[] = $lifecycle;
-        }
-
-        $folderNames = array_filter($folderNames, function($name) {
-            return strpos($name, '.') === false;
-        });
-        
-        return array_unique($folderNames);
-    }
     
     /**
      * @param string $serviceClass
@@ -245,9 +154,9 @@ class LifeCycleServiceProvider extends ServiceProvider
     protected function organizeHooksByKernel(string $serviceClass, array $availableHooks): array
     {
         $orderedHooks = [];
-        $kernelOrder = $this->hooksKernel->hookOrder;
+        $kernelHooks = $this->hooksKernel->hooks;
         
-        if (!isset($kernelOrder[$serviceClass])) {
+        if (!isset($kernelHooks[$serviceClass])) {
             return $availableHooks;
         }
         
@@ -261,7 +170,7 @@ class LifeCycleServiceProvider extends ServiceProvider
         }
         
         foreach ($hooksByLifecycle as $lifecycle => $lifecycleHooks) {
-            $order = $kernelOrder[$serviceClass][$lifecycle] ?? [];
+            $order = $kernelHooks[$serviceClass][$lifecycle] ?? [];
             
             foreach ($order as $orderedHookClass) {
                 if (isset($lifecycleHooks[$orderedHookClass])) {
