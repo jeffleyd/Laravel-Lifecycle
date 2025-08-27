@@ -213,7 +213,54 @@ php artisan lifecycle:main App/Services/PaymentService
 # Generate a new hook (saved in app/Hooks/)
 php artisan lifecycle:hook ValidatePaymentHook --scope=payment --point=before_payment --severity=Critical
 php artisan lifecycle:hook ProcessDiscountHook --scope=payment --point=after_payment --severity=Optional
+
+# Analyze lifecycle points and hooks
+php artisan lifecycle:analyze App/Services/PaymentService
 ```
+
+**Analyze Command Output:**
+```
+Analyzing lifecycle for: App\Services\PaymentService
+
+Lifecycle Points (3):
+  • before_payment: [amount, user_id]
+  • after_payment: [amount, user_id, payment_id]
+  • payment_failed: [amount, user_id, error]
+
+Hook Analysis:
+  • before_payment: 3 hooks (2 critical, 1 optional)
+    - App\Hooks\ValidatePaymentHook [critical] (scope: payment)
+    - App\Hooks\FraudDetectionHook [critical] (scope: security)
+    - App\Hooks\LogPaymentHook [optional] (scope: logging)
+  • after_payment: 2 hooks (0 critical, 2 optional)
+    - App\Hooks\ProcessDiscountHook [optional] (scope: payment)
+    - App\Hooks\SendEmailHook [optional] (scope: notification)
+  • payment_failed: 1 hook (1 critical, 0 optional)
+    - App\Hooks\PaymentFailureHook [critical] (scope: payment)
+
+Summary:
+  • Total hooks: 6
+  • Critical hooks: 3
+  • Optional hooks: 3
+
+Side Effects Analysis:
+  📝 before_payment:
+    - App\Hooks\FraudDetectionHook modifies: [amount]
+    - App\Hooks\ApplyDiscountHook modifies: [amount, user_id]
+  ✅ after_payment: No hooks with detected side effects
+
+Potential Issues:
+  ⚠️  Multiple hooks modify 'amount' in before_payment: FraudDetectionHook, ApplyDiscountHook
+     Order matters! Check execution sequence in Kernel configuration.
+
+⚠️  This class has 3 critical hooks that will throw exceptions on failure.
+```
+
+**Side Effects Detection Features:**
+- **Source Code Analysis**: Scans hook methods to detect parameter modifications
+- **Conflict Detection**: Identifies when multiple hooks modify the same parameter
+- **Execution Order Warnings**: Alerts about potential issues with hook sequence
+- **Pattern Recognition**: Detects common modification patterns like `$args[0] = value`
 
 ### Debug Mode
 

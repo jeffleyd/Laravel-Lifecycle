@@ -34,6 +34,7 @@ class LifeCycleServiceProvider extends ServiceProvider
             $this->commands([
                 \PhpDiffused\Lifecycle\Console\MakeLifecycleCommand::class,
                 \PhpDiffused\Lifecycle\Console\MakeHookCommand::class,
+                \PhpDiffused\Lifecycle\Console\AnalyzeLifecycleCommand::class,
             ]);
         }
     }
