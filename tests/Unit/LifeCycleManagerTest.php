@@ -2,29 +2,23 @@
 
 namespace PhpDiffused\Lifecycle\Tests\Unit;
 
-use PHPUnit\Framework\TestCase;
+use PhpDiffused\Lifecycle\Tests\TestCase;
 use PhpDiffused\Lifecycle\LifeCycleManager;
 use PhpDiffused\Lifecycle\LifeCycleServiceProvider;
-use PhpDiffused\Lifecycle\Contracts\LifeCycle;
-use PhpDiffused\Lifecycle\Contracts\LifeCycleHook;
+use PhpDiffused\Lifecycle\Attributes\LifeCyclePoint;
+use PhpDiffused\Lifecycle\Attributes\Hook;
+use PhpDiffused\Lifecycle\Attributes\Severity;
+use PhpDiffused\Lifecycle\Traits\HasLifecycle;
+use PhpDiffused\Lifecycle\Traits\Hookable;
 use PhpDiffused\Lifecycle\Exceptions\InvalidLifeCycleException;
 use PhpDiffused\Lifecycle\Exceptions\HookExecutionException;
 use Illuminate\Support\Collection;
 
 class LifeCycleManagerTest extends TestCase
 {
-    private LifeCycleManager $manager;
-    private LifeCycleServiceProvider $provider;
-    
     protected function setUp(): void
     {
         parent::setUp();
-
-        $this->provider = $this->createMock(LifeCycleServiceProvider::class);
-        $this->provider->method('resolveHooksFor')
-            ->willReturn(collect());
-            
-        $this->manager = new LifeCycleManager($this->provider);
     }
     
     public function test_can_run_hooks_with_class_name(): void
@@ -66,7 +60,7 @@ class LifeCycleManagerTest extends TestCase
     public function test_throws_exception_for_non_lifecycle_class(): void
     {
         $this->expectException(InvalidLifeCycleException::class);
-        $this->expectExceptionMessage("Class 'stdClass' must implement");
+        $this->expectExceptionMessage("Class 'stdClass' must define lifecycle points");
         
         $this->manager->runHook(\stdClass::class, 'some.event');
     }
@@ -159,31 +153,20 @@ class LifeCycleManagerTest extends TestCase
     }
 }
 
-class ManagerTestService implements LifeCycle
+#[LifeCyclePoint('test.begin', ['param1', 'param2'])]
+#[LifeCyclePoint('test.complete', ['result'])]
+class ManagerTestService
 {
-    public static function lifeCycle(): array
-    {
-        return [
-            'test.begin' => ['param1', 'param2'],
-            'test.complete' => ['result'],
-        ];
-    }
+    use HasLifecycle;
 }
 
-class ManagerTestHook implements LifeCycleHook
+#[Hook(scope: 'ManagerTestService', point: 'test.begin', severity: Severity::Optional)]
+class ManagerTestHook
 {
+    use Hookable;
+    
     private bool $executed = false;
     private array $receivedArgs = [];
-    
-    public function getLifeCycle(): string
-    {
-        return 'test.begin';
-    }
-    
-    public function getSeverity(): string
-    {
-        return 'optional';
-    }
     
     public function handle(array &$args): void
     {
@@ -202,34 +185,21 @@ class ManagerTestHook implements LifeCycleHook
     }
 }
 
-class ManagerCompleteHook implements LifeCycleHook
+#[Hook(scope: 'ManagerTestService', point: 'test.complete', severity: Severity::Optional)]
+class ManagerCompleteHook
 {
-    public function getLifeCycle(): string
-    {
-        return 'test.complete';
-    }
-    
-    public function getSeverity(): string
-    {
-        return 'optional';
-    }
+    use Hookable;
     
     public function handle(array &$args): void
     {
+        // Do nothing
     }
 }
 
-class ManagerCriticalFailingHook implements LifeCycleHook
+#[Hook(scope: 'ManagerTestService', point: 'test.begin', severity: Severity::Critical)]
+class ManagerCriticalFailingHook
 {
-    public function getLifeCycle(): string
-    {
-        return 'test.begin';
-    }
-    
-    public function getSeverity(): string
-    {
-        return 'critical';
-    }
+    use Hookable;
     
     public function handle(array &$args): void
     {
@@ -237,17 +207,10 @@ class ManagerCriticalFailingHook implements LifeCycleHook
     }
 }
 
-class ManagerOptionalFailingHook implements LifeCycleHook
+#[Hook(scope: 'ManagerTestService', point: 'test.begin', severity: Severity::Optional)]
+class ManagerOptionalFailingHook
 {
-    public function getLifeCycle(): string
-    {
-        return 'test.begin';
-    }
-    
-    public function getSeverity(): string
-    {
-        return 'optional';
-    }
+    use Hookable;
     
     public function handle(array &$args): void
     {
@@ -255,17 +218,10 @@ class ManagerOptionalFailingHook implements LifeCycleHook
     }
 }
 
-class ManagerMutatingHook implements LifeCycleHook
+#[Hook(scope: 'ManagerTestService', point: 'test.begin', severity: Severity::Optional)]
+class ManagerMutatingHook
 {
-    public function getLifeCycle(): string
-    {
-        return 'test.begin';
-    }
-    
-    public function getSeverity(): string
-    {
-        return 'optional';
-    }
+    use Hookable;
     
     public function handle(array &$args): void
     {

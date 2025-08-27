@@ -33,10 +33,13 @@ if (!function_exists('addHook')) {
     /**
      * Add a hook dynamically to a class
      * 
+     * NOTE: In the new kernel-based system, hooks should be registered in the Kernel.
+     * This function is maintained for compatibility but will log a warning.
+     * 
      * @param string|object $target Class name or instance
-     * @param \PhpDiffused\Lifecycle\Contracts\LifeCycleHook $hook
+     * @param object $hook Hook instance
      */
-    function addHook($target, \PhpDiffused\Lifecycle\Contracts\LifeCycleHook $hook): void
+    function addHook($target, $hook): void
     {
         $className = is_object($target) ? get_class($target) : $target;
         
@@ -49,6 +52,9 @@ if (!function_exists('addHook')) {
 if (!function_exists('removeHooksFor')) {
     /**
      * Remove all hooks for a specific lifecycle in a class
+     * 
+     * NOTE: In the new kernel-based system, hooks should be managed in the Kernel.
+     * This function is maintained for compatibility but will log a warning.
      * 
      * @param string|object $target Class name or instance
      * @param string $lifeCycle

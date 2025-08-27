@@ -3,49 +3,34 @@
 namespace PhpDiffused\Lifecycle;
 
 use Illuminate\Support\Collection;
-use PhpDiffused\Lifecycle\Contracts\LifeCycle;
-use PhpDiffused\Lifecycle\Contracts\LifeCycleHook;
 use PhpDiffused\Lifecycle\Exceptions\HookExecutionException;
 use PhpDiffused\Lifecycle\Exceptions\InvalidLifeCycleException;
+use PhpDiffused\Lifecycle\Traits\HasLifecycle;
 
 class LifeCycleManager
 {
-    /**
-     * Storage for hooks by class
-     * @var array<string, Collection<int, LifeCycleHook>>
-     */
+    protected $kernel = null;
+    protected array $hookCache = [];
     protected array $hooks = [];
     
-    /**
-     * @var LifeCycleServiceProvider
-     */
-    protected LifeCycleServiceProvider $provider;
-    
-    public function __construct(LifeCycleServiceProvider $provider)
+    public function __construct()
     {
-        $this->provider = $provider;
+        if (class_exists(\App\Hooks\Kernel::class)) {
+            $this->kernel = new \App\Hooks\Kernel();
+        }
     }
     
-    /**
-     * Run hooks for a specific class and lifecycle
-     * 
-     * @param string|object $target Class name or instance
-     * @param string $lifeCycle The lifecycle event name
-     * @param mixed ...$args Arguments passed by reference
-     * @throws InvalidLifeCycleException
-     * @throws HookExecutionException
-     */
     public function runHook($target, string $lifeCycle, &...$args): void
     {
         $className = is_object($target) ? get_class($target) : $target;
 
-        if (!is_subclass_of($className, LifeCycle::class)) {
+        if (!$this->classHasLifecycle($className)) {
             throw new InvalidLifeCycleException(
-                "Class '{$className}' must implement " . LifeCycle::class
+                "Class '{$className}' must define lifecycle points"
             );
         }
 
-        $lifeCycles = $className::lifeCycle();
+        $lifeCycles = $this->getLifeCyclePoints($className);
         if (!array_key_exists($lifeCycle, $lifeCycles)) {
             throw new InvalidLifeCycleException(
                 "LifeCycle '{$lifeCycle}' is not defined in {$className}"
@@ -66,15 +51,25 @@ class LifeCycleManager
             $argsArray[$argName] = &$args[$index];
         }
 
-        $hooks = $this->getHooksFor($className);
-
-        $lifecycleHooks = $hooks->filter(fn(LifeCycleHook $hook) => $hook->getLifeCycle() === $lifeCycle);
-
-        if ($this->provider->hooksKernel && isset($this->provider->hooksKernel->hooks[$className][$lifeCycle])) {
-            $lifecycleHooks = $this->applyHookOrdering($lifecycleHooks, $className, $lifeCycle);
+        $kernelHooks = $this->getHooksFromKernel($className, $lifeCycle);
+        
+        if ($kernelHooks->isEmpty()) {
+            $manualHooks = $this->getHooksFor($className);
+            $filteredHooks = $manualHooks->filter(function(object $hook) use ($lifeCycle) {
+                if (method_exists($hook, 'getLifeCycle')) {
+                    return $hook->getLifeCycle() === $lifeCycle;
+                }
+                return false;
+            });
+        } else {
+            $filteredHooks = $kernelHooks;
         }
 
-        $lifecycleHooks->each(function (LifeCycleHook $hook) use (&$argsArray, $lifeCycle, $className) {
+        if (function_exists('config') && config('lifecycle.debug', false)) {
+            $this->logDebugInfo($className, $lifeCycle, $filteredHooks, $argsArray);
+        }
+
+        $filteredHooks->each(function (object $hook) use (&$argsArray, $lifeCycle, $className) {
             try {
                 $hook->handle($argsArray);
             } catch (\Throwable $e) {
@@ -83,49 +78,107 @@ class LifeCycleManager
         });
     }
     
-    /**
-     * Get hooks for a specific class
-     * 
-     * @param string $className
-     * @return Collection<int, LifeCycleHook>
-     */
-    public function getHooksFor(string $className): Collection
+    protected function classHasLifecycle(string $className): bool
     {
-        if (!isset($this->hooks[$className])) {
-            $this->hooks[$className] = $this->provider->resolveHooksFor($className);
+        if (!class_exists($className)) {
+            return false;
+        }
+
+        $reflection = new \ReflectionClass($className);
+        $traits = $reflection->getTraitNames();
+        
+        if (in_array(HasLifecycle::class, $traits)) {
+            return true;
         }
         
-        return $this->hooks[$className];
+        return method_exists($className, 'lifeCycle');
     }
     
-    /**
-     * Set the hooks kernel for ordering (used in tests)
-     * 
-     * @param mixed $kernel
-     */
+    protected function getLifeCyclePoints(string $className): array
+    {
+        if (!class_exists($className)) {
+            return [];
+        }
+
+        $reflection = new \ReflectionClass($className);
+        $traits = $reflection->getTraitNames();
+        
+        if (in_array(HasLifecycle::class, $traits)) {
+            return $className::lifeCycle();
+        }
+        
+        if (method_exists($className, 'lifeCycle')) {
+            return $className::lifeCycle();
+        }
+        
+        return [];
+    }
+    
+    protected function getHooksFromKernel(string $className, string $lifeCycle): Collection
+    {
+        $cacheKey = "{$className}.{$lifeCycle}";
+        
+        if (isset($this->hookCache[$cacheKey])) {
+            return $this->hookCache[$cacheKey];
+        }
+        
+        $hooks = collect();
+        
+        if (!$this->kernel || !isset($this->kernel->hooks[$className][$lifeCycle])) {
+            $this->hookCache[$cacheKey] = $hooks;
+            return $hooks;
+        }
+        
+        $hookClasses = $this->kernel->hooks[$className][$lifeCycle];
+        
+        foreach ($hookClasses as $hookClass) {
+            try {
+                if (class_exists($hookClass)) {
+                    $hookInstance = app($hookClass);
+                    $hooks->push($hookInstance);
+                }
+            } catch (\Throwable $e) {
+                if ((!function_exists('config') || config('lifecycle.error_handling.log_failures', true)) && function_exists('logger') && app()->bound('log')) {
+                    logger()->warning("Failed to instantiate kernel hook: {$hookClass}", [
+                        'error' => $e->getMessage(),
+                        'service' => $className,
+                        'lifecycle' => $lifeCycle
+                    ]);
+                }
+            }
+        }
+        
+        $this->hookCache[$cacheKey] = $hooks;
+        
+        return $hooks;
+    }
+    
     public function setHooksKernel($kernel): void
     {
-        $this->provider->hooksKernel = $kernel;
+        $this->kernel = $kernel;
+        $this->clearCache();
     }
     
-    /**
-     * Set hooks for a specific class
-     * 
-     * @param string $className
-     * @param Collection $hooks
-     */
+    public function clearCache(): void
+    {
+        $this->hookCache = [];
+    }
+    
     public function setHooksFor(string $className, Collection $hooks): void
     {
         $this->hooks[$className] = $hooks;
     }
     
-    /**
-     * Add a hook for a specific class
-     * 
-     * @param string $className
-     * @param LifeCycleHook $hook
-     */
-    public function addHook(string $className, LifeCycleHook $hook): void
+    public function getHooksFor(string $className): Collection
+    {
+        if (!isset($this->hooks[$className])) {
+            $this->hooks[$className] = collect();
+        }
+        
+        return $this->hooks[$className];
+    }
+    
+    public function addHook(string $className, object $hook): void
     {
         if (!isset($this->hooks[$className])) {
             $this->hooks[$className] = collect();
@@ -134,73 +187,53 @@ class LifeCycleManager
         $this->hooks[$className]->push($hook);
     }
     
-    /**
-     * Remove all hooks for a specific lifecycle in a class
-     * 
-     * @param string $className
-     * @param string $lifeCycle
-     */
     public function removeHooksFor(string $className, string $lifeCycle): void
     {
         if (isset($this->hooks[$className])) {
             $this->hooks[$className] = $this->hooks[$className]
-                ->reject(fn(LifeCycleHook $hook) => $hook->getLifeCycle() === $lifeCycle);
+                ->reject(function(object $hook) use ($lifeCycle) {
+                    if (method_exists($hook, 'getLifeCycle')) {
+                        return $hook->getLifeCycle() === $lifeCycle;
+                    }
+                    return false;
+                });
         }
     }
     
-    /**
-     * Apply hook ordering based on kernel configuration
-     * 
-     * @param Collection $hooks
-     * @param string $className
-     * @param string $lifeCycle
-     * @return Collection
-     */
-    protected function applyHookOrdering(Collection $hooks, string $className, string $lifeCycle): Collection
+    protected function handleError(object $hook, \Throwable $e, string $lifeCycle, string $className): void
     {
-        $orderedHooks = collect();
-        $hookOrder = $this->provider->hooksKernel->hooks[$className][$lifeCycle] ?? [];
-
-        foreach ($hookOrder as $orderedHookClass) {
-            $hook = $hooks->first(fn(LifeCycleHook $h) => get_class($h) === $orderedHookClass);
-            if ($hook) {
-                $orderedHooks->push($hook);
-            }
-        }
-
-        $hooks->each(function (LifeCycleHook $hook) use ($orderedHooks, $hookOrder) {
-            if (!in_array(get_class($hook), $hookOrder) && !$orderedHooks->contains($hook)) {
-                $orderedHooks->push($hook);
-            }
-        });
+        $severity = 'optional';
         
-        return $orderedHooks;
-    }
-    
-    /**
-     * Handle errors during hook execution
-     * 
-     * @param LifeCycleHook $hook
-     * @param \Throwable $e
-     * @param string $lifeCycle
-     * @param string $className
-     * @throws HookExecutionException
-     */
-    protected function handleError(LifeCycleHook $hook, \Throwable $e, string $lifeCycle, string $className): void
-    {
-        if ($hook->getSeverity() === 'critical') {
+        if (method_exists($hook, 'getSeverity')) {
+            $severity = $hook->getSeverity();
+        }
+        
+        if ($severity === 'critical' && (!function_exists('config') || config('lifecycle.error_handling.throw_on_critical', true))) {
             throw new HookExecutionException(
                 "Critical hook failed in lifecycle '{$lifeCycle}' for class '{$className}': " . $e->getMessage(),
                 previous: $e
             );
         }
         
-        if (function_exists('logger') && app()->bound('log')) {
+        if ((!function_exists('config') || config('lifecycle.error_handling.log_failures', true)) && function_exists('logger') && app()->bound('log')) {
             logger()->error("Hook failed in lifecycle '{$lifeCycle}' for class '{$className}'", [
                 'hook' => get_class($hook),
-                'severity' => $hook->getSeverity(),
+                'severity' => $severity,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => (function_exists('config') && config('lifecycle.debug', false)) ? $e->getTraceAsString() : null
+            ]);
+        }
+    }
+    
+    protected function logDebugInfo(string $className, string $lifeCycle, Collection $hooks, array $args): void
+    {
+        if (function_exists('logger') && app()->bound('log')) {
+            logger()->debug("Executing hooks for lifecycle '{$lifeCycle}' in class '{$className}'", [
+                'class' => $className,
+                'lifecycle' => $lifeCycle,
+                'hooks_count' => $hooks->count(),
+                'hooks' => $hooks->map(fn($hook) => get_class($hook))->toArray(),
+                'arguments' => array_keys($args)
             ]);
         }
     }

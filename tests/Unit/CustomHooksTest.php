@@ -3,8 +3,11 @@
 namespace PhpDiffused\Lifecycle\Tests\Unit;
 
 use PhpDiffused\Lifecycle\Tests\TestCase;
-use PhpDiffused\Lifecycle\Contracts\LifeCycle;
-use PhpDiffused\Lifecycle\Contracts\LifeCycleHook;
+use PhpDiffused\Lifecycle\Attributes\LifeCyclePoint;
+use PhpDiffused\Lifecycle\Attributes\Hook;
+use PhpDiffused\Lifecycle\Attributes\Severity;
+use PhpDiffused\Lifecycle\Traits\HasLifecycle;
+use PhpDiffused\Lifecycle\Traits\Hookable;
 
 class CustomHooksTest extends TestCase
 {
@@ -42,19 +45,22 @@ class CustomHooksTest extends TestCase
     
     public function test_kernel_can_register_custom_hooks(): void
     {
-        $hooks = $this->provider->resolveHooksFor(TestServiceWithCustomHooks::class);
+        // Verificar se o kernel foi configurado corretamente
+        $this->assertNotNull($this->provider->hooksKernel);
+        $this->assertArrayHasKey(TestServiceWithCustomHooks::class, $this->provider->hooksKernel->hooks);
         
-        $this->assertCount(2, $hooks);
-        
-        $hookClasses = $hooks->map(fn($hook) => get_class($hook))->toArray();
-        $this->assertContains(CustomHookFromAnotherLocation::class, $hookClasses);
-        $this->assertContains(AnotherCustomHook::class, $hookClasses);
+        $kernelHooks = $this->provider->hooksKernel->hooks[TestServiceWithCustomHooks::class]['process'];
+        $this->assertContains(CustomHookFromAnotherLocation::class, $kernelHooks);
+        $this->assertContains(AnotherCustomHook::class, $kernelHooks);
     }
     
     public function test_custom_hooks_can_be_executed(): void
     {
         CustomHookFromAnotherLocation::$executed = false;
         AnotherCustomHook::$executed = false;
+        
+        // Configurar o kernel no manager
+        $this->manager->setHooksKernel($this->provider->hooksKernel);
         
         $data = 'test_data';
         runHook(TestServiceWithCustomHooks::class, 'process', $data);
@@ -67,6 +73,9 @@ class CustomHooksTest extends TestCase
     {
         CustomHookFromAnotherLocation::$executionOrder = [];
         AnotherCustomHook::$executionOrder = [];
+        
+        // Configurar o kernel no manager
+        $this->manager->setHooksKernel($this->provider->hooksKernel);
         
         $data = 'test_data';
         runHook(TestServiceWithCustomHooks::class, 'process', $data);
@@ -87,30 +96,19 @@ class CustomHooksTest extends TestCase
     }
 }
 
-class TestServiceWithCustomHooks implements LifeCycle
+#[LifeCyclePoint('process', ['data'])]
+class TestServiceWithCustomHooks
 {
-    public static function lifeCycle(): array
-    {
-        return [
-            'process' => ['data'],
-        ];
-    }
+    use HasLifecycle;
 }
 
-class CustomHookFromAnotherLocation implements LifeCycleHook
+#[Hook(scope: 'TestServiceWithCustomHooks', point: 'process', severity: Severity::Optional)]
+class CustomHookFromAnotherLocation
 {
+    use Hookable;
+    
     public static bool $executed = false;
     public static array $executionOrder = [];
-    
-    public function getLifeCycle(): string
-    {
-        return 'process';
-    }
-    
-    public function getSeverity(): string
-    {
-        return 'optional';
-    }
     
     public function handle(array &$args): void
     {
@@ -119,20 +117,13 @@ class CustomHookFromAnotherLocation implements LifeCycleHook
     }
 }
 
-class AnotherCustomHook implements LifeCycleHook
+#[Hook(scope: 'TestServiceWithCustomHooks', point: 'process', severity: Severity::Optional)]
+class AnotherCustomHook
 {
+    use Hookable;
+    
     public static bool $executed = false;
     public static array $executionOrder = [];
-    
-    public function getLifeCycle(): string
-    {
-        return 'process';
-    }
-    
-    public function getSeverity(): string
-    {
-        return 'optional';
-    }
     
     public function handle(array &$args): void
     {

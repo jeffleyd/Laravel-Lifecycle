@@ -39,18 +39,19 @@ Imagine you have a `PaymentService` and multiple developers need to add differen
 
 ## 🔥 Quick Example
 
+### ✨ Modern PHP 8+ Approach with Attributes
+
 ```php
-// 🎯 Core service stays clean and focused (NEW: No trait needed!)
-class PaymentService implements LifeCycle
-{    
-    public static function lifeCycle(): array
-    {
-        return [
-            'before_payment' => ['user_id', 'amount'],
-            'after_payment' => ['user_id', 'amount', 'payment_id'],
-            'payment_failed' => ['user_id', 'amount', 'error'],
-        ];
-    }
+use PhpDiffused\Lifecycle\Attributes\LifeCyclePoint;
+use PhpDiffused\Lifecycle\Traits\HasLifecycle;
+
+// 🎯 Core service with modern PHP 8+ attributes
+#[LifeCyclePoint('before_payment', ['user_id', 'amount'])]
+#[LifeCyclePoint('after_payment', ['user_id', 'amount', 'payment_id'])]
+#[LifeCyclePoint('payment_failed', ['user_id', 'amount', 'error'])]
+class PaymentService
+{
+    use HasLifecycle;
     
     public function process(int $userId, float $amount): string
     {
@@ -64,12 +65,18 @@ class PaymentService implements LifeCycle
         return $paymentId;
     }
 }
+```
 
-// 🎨 Different developers add their behaviors separately
-class EmailNotificationHook implements LifeCycleHook
+```php
+use PhpDiffused\Lifecycle\Attributes\Hook;
+use PhpDiffused\Lifecycle\Attributes\Severity;
+use PhpDiffused\Lifecycle\Traits\Hookable;
+
+// 🎨 Modern hooks with attributes and traits
+#[Hook(scope: 'PaymentService', point: 'after_payment', severity: Severity::Optional)]
+class EmailNotificationHook
 {
-    public function getLifeCycle(): string { return 'after_payment'; }
-    public function getSeverity(): string { return 'optional'; }
+    use Hookable;
     
     public function handle(array &$args): void
     {
@@ -77,10 +84,10 @@ class EmailNotificationHook implements LifeCycleHook
     }
 }
 
-class FraudDetectionHook implements LifeCycleHook  
+#[Hook(scope: 'PaymentService', point: 'before_payment', severity: Severity::Critical)]
+class FraudDetectionHook
 {
-    public function getLifeCycle(): string { return 'before_payment'; }
-    public function getSeverity(): string { return 'critical'; }
+    use Hookable;
     
     public function handle(array &$args): void
     {
@@ -91,21 +98,60 @@ class FraudDetectionHook implements LifeCycleHook
 }
 ```
 
+
+
 ## 📦 Installation
 
 ```bash
 composer require php-diffused/lifecycle
 ```
 
+### Register Service Provider
+
+Add the service provider to your `config/app.php`:
+
+```php
+'providers' => [
+    // ...
+    PhpDiffused\Lifecycle\LifeCycleServiceProvider::class,
+],
+```
+
+### Publish Kernel (Recommended)
+
+```bash
+php artisan vendor:publish --tag=lifecycle-kernel
+```
+
+This creates `app/Hooks/Kernel.php` where you register all your hooks:
+
+```php
+<?php
+
+namespace App\Hooks;
+
+class Kernel
+{
+    public array $hooks = [
+        \App\Services\PaymentService::class => [
+            'before_payment' => [
+                \App\Hooks\FraudDetectionHook::class,
+                \App\Hooks\ValidateAmountHook::class,
+            ],
+            'after_payment' => [
+                \App\Hooks\PaymentEmailHook::class,
+                \App\Hooks\PaymentAnalyticsHook::class,
+            ],
+        ],
+    ];
+}
+```
+
 ### Publish Configuration (Optional)
+
 ```bash
 php artisan vendor:publish --tag=lifecycle-config
 ```
-
-This will create a `config/lifecycle.php` file where you can customize:
-- **Auto-discovery**: Enable/disable automatic hook discovery
-- **Cache**: Configure hook caching for better performance
-- **Error handling**: Configure error logging and handling
 
 #### **Leverage External Hook Execution**
 ```php
@@ -145,25 +191,14 @@ public function test_payment_hooks() {
 ```php
 // config/lifecycle.php
 
-return [
-    // Enable/disable automatic hook discovery from filesystem
-    'auto_discovery' => true,
-    
-    // Path where hooks are discovered
-    'discovery_path' => app_path('Hooks'),
-    
-    // Cache configuration for better performance
-    'cache' => [
-        'enabled' => env('APP_ENV') === 'production',
-        'key' => 'lifecycle.hooks',
-        'ttl' => 86400, // 24 hours
-    ],
-    
+return [    
     // Error handling configuration
     'error_handling' => [
         'log_failures' => true,
         'throw_on_critical' => true,
     ],
+    
+    'debug' => true, // Enable debug mode for detailed logging
 ];
 ```
 
@@ -234,78 +269,150 @@ removeHooksFor(PaymentService::class, 'payment.failed');
 - **Junior developers** can contribute safely
 
 ### 🛡️ **Hook Severity**
+
 ```php
+use PhpDiffused\Lifecycle\Attributes\Hook;
+use PhpDiffused\Lifecycle\Attributes\Severity;
+use PhpDiffused\Lifecycle\Traits\Hookable;
+
 // ⚠️ Critical hooks MUST succeed
-public function getSeverity(): string { return 'critical'; }
+#[Hook(scope: 'PaymentService', point: 'before_payment', severity: Severity::Critical)]
+class FraudDetectionHook
+{
+    use Hookable;
+    
+    public function handle(array &$args): void
+    {
+        if ($this->detectFraud($args)) {
+            throw new \Exception('Fraud detected!');
+        }
+    }
+}
 
 // 💡 Optional hooks fail gracefully  
-public function getSeverity(): string { return 'optional'; }
-```
-
-### 🔍 **Auto-Discovery**
-Drop hooks in `app/Hooks/ServiceName/` and they're automatically loaded.
-
-```
-app/Hooks/
-├── PaymentService/
-│   ├── ValidateAmountHook.php
-│   ├── ApplyDiscountHook.php
-│   ├── SendEmailHook.php
-│   └── FraudDetectionHook.php
-└── OrderService/
-    ├── ValidateInventoryHook.php
-    └── InventoryUpdateHook.php
-```
-
-Hooks are discovered automatically based on the service class name.
-
-### ✅ **Argument Validation**
-Hooks receive exactly what they expect:
-```php
-public static function lifeCycle(): array
+#[Hook(scope: 'PaymentService', point: 'after_payment', severity: Severity::Optional)]
+class EmailNotificationHook
 {
-    return [
-        'before_payment' => ['user_id', 'amount'],        // ✅ Required args
-        'after_payment' => ['user_id', 'amount', 'payment_id'], 
-    ];
+    use Hookable;
+    
+    public function handle(array &$args): void
+    {
+        // If this fails, payment still succeeds
+        Mail::send(/* ... */);
+    }
 }
 ```
 
-### 🔢 **Hook Ordering**
-Control execution order when it matters:
+### 🎯 **Kernel-Based Registration**
+
+All hooks are explicitly registered in the Kernel for better control and performance:
+
 ```php
-public array $hookOrder = [
-    PaymentService::class => [
+// app/Hooks/Kernel.php
+public array $hooks = [
+    \App\Services\PaymentService::class => [
         'before_payment' => [
-            ValidateHook::class,    // 1st: Validation
-            FraudHook::class,       // 2nd: Security
-            DiscountHook::class,    // 3rd: Business logic
+            \App\Hooks\FraudDetectionHook::class,      // Critical - runs first
+            \App\Hooks\ValidateAmountHook::class,      // Critical - validation
+        ],
+        'after_payment' => [
+            \App\Hooks\PaymentEmailHook::class,        // Optional - notifications
+            \App\Hooks\PaymentAnalyticsHook::class,    // Optional - tracking
+        ],
+    ],
+    
+    \App\Services\OrderService::class => [
+        'after_create' => [
+            \App\Hooks\InventoryUpdateHook::class,     // Critical - inventory
+            \App\Hooks\OrderNotificationHook::class,   // Optional - email
+        ],
+    ],
+];
+```
+
+**Flexible Hook Organization:**
+```
+app/Hooks/
+├── FraudDetectionHook.php      ← Modern attributes
+├── PaymentEmailHook.php        ← Modern attributes
+├── PaymentAnalyticsHook.php    ← Modern attributes
+└── Legacy/
+    └── OldStyleHook.php        ← Legacy interfaces (still supported)
+```
+
+### ✅ **Argument Validation**
+
+Hooks receive exactly what they expect with modern attributes:
+
+```php
+use PhpDiffused\Lifecycle\Attributes\LifeCyclePoint;
+use PhpDiffused\Lifecycle\Traits\HasLifecycle;
+
+#[LifeCyclePoint('before_payment', ['user_id', 'amount'])]        // ✅ Required args
+#[LifeCyclePoint('after_payment', ['user_id', 'amount', 'payment_id'])]
+class PaymentService
+{
+    use HasLifecycle;
+}
+```
+
+
+
+### 🔢 **Hook Ordering**
+
+Control execution order in the Kernel:
+
+```php
+// app/Hooks/Kernel.php
+public array $hooks = [
+    \App\Services\PaymentService::class => [
+        'before_payment' => [
+            \App\Hooks\ValidateAmountHook::class,    // 1st: Validation
+            \App\Hooks\FraudDetectionHook::class,    // 2nd: Security
+            \App\Hooks\ApplyDiscountHook::class,     // 3rd: Business logic
+        ],
+        'after_payment' => [
+            \App\Hooks\PaymentEmailHook::class,      // 1st: Notifications
+            \App\Hooks\PaymentAnalyticsHook::class,  // 2nd: Analytics
         ]
     ]
 ];
 ```
 
+Hooks execute in the **exact order** defined in the Kernel, giving you complete control over the execution flow.
+
+---
+
+## ✨ **Modern PHP 8+ Features**
+
+### 🎯 **Key Benefits**
+
+- ✅ **Cleaner Code**: Less boilerplate, more declarative
+- ✅ **Type Safety**: Enums prevent typos in severity levels
+- ✅ **IDE Support**: Better autocomplete and navigation
+- ✅ **Performance**: Direct Kernel registration, no filesystem scanning
+- ✅ **Flexibility**: Hooks can be anywhere, not tied to directory structure
+- ✅ **Maintainability**: Clear separation of concerns with traits
+
 ## 🚀 Getting Started
 
 ### 1. Create Your Service
+
 ```php
 <?php
 
 namespace App\Services;
 
-use PhpDiffused\Lifecycle\Contracts\LifeCycle;
+use PhpDiffused\Lifecycle\Attributes\LifeCyclePoint;
+use PhpDiffused\Lifecycle\Traits\HasLifecycle;
 
-class OrderService implements LifeCycle
-{    
-    public static function lifeCycle(): array
-    {
-        return [
-            'before_create' => ['user_id', 'products'],
-            'after_create' => ['user_id', 'order_id', 'total'],
-            'before_ship' => ['order_id'],
-            'after_ship' => ['order_id', 'tracking_number'],
-        ];
-    }
+#[LifeCyclePoint('before_create', ['user_id', 'products'])]
+#[LifeCyclePoint('after_create', ['user_id', 'order_id', 'total'])]
+#[LifeCyclePoint('before_ship', ['order_id'])]
+#[LifeCyclePoint('after_ship', ['order_id', 'tracking_number'])]
+class OrderService
+{
+    use HasLifecycle;
     
     public function createOrder(int $userId, array $products): string
     {
@@ -323,24 +430,20 @@ class OrderService implements LifeCycle
 ```
 
 ### 2. Create Hooks
+
 ```php
 <?php
 
-namespace App\Hooks\OrderService;
+namespace App\Hooks;
 
-use PhpDiffused\Lifecycle\Contracts\LifeCycleHook;
+use PhpDiffused\Lifecycle\Attributes\Hook;
+use PhpDiffused\Lifecycle\Attributes\Severity;
+use PhpDiffused\Lifecycle\Traits\Hookable;
 
-class InventoryUpdateHook implements LifeCycleHook
+#[Hook(scope: 'OrderService', point: 'after_create', severity: Severity::Critical)]
+class InventoryUpdateHook
 {
-    public function getLifeCycle(): string
-    {
-        return 'after_create';
-    }
-    
-    public function getSeverity(): string
-    {
-        return 'critical'; // Must succeed
-    }
+    use Hookable;
     
     public function handle(array &$args): void
     {
@@ -348,23 +451,30 @@ class InventoryUpdateHook implements LifeCycleHook
     }
 }
 
-class WelcomeEmailHook implements LifeCycleHook
+#[Hook(scope: 'OrderService', point: 'after_create', severity: Severity::Optional)]
+class WelcomeEmailHook
 {
-    public function getLifeCycle(): string
-    {
-        return 'after_create';
-    }
-    
-    public function getSeverity(): string
-    {
-        return 'optional'; // Can fail gracefully
-    }
+    use Hookable;
     
     public function handle(array &$args): void
     {
         Mail::to($args['user_id'])->send(new WelcomeEmail($args));
     }
 }
+```
+
+### 3. Register Hooks in Kernel
+
+```php
+// app/Hooks/Kernel.php
+public array $hooks = [
+    \App\Services\OrderService::class => [
+        'after_create' => [
+            \App\Hooks\InventoryUpdateHook::class,  // Critical - runs first
+            \App\Hooks\WelcomeEmailHook::class,     // Optional - runs after
+        ],
+    ],
+];
 ```
 
 ### 3. Organize Hooks by Lifecycle (NEW!)
@@ -504,28 +614,46 @@ class OrderService implements LifeCycle
 ```
 
 ### 🔄 Mutable Hooks (Pass by Reference)
+
 Hooks can modify values that are passed through the lifecycle using spread operator:
 
 ```php
-// In your service
-public function processPayment(int $userId, float $amount): array
-{
-    $originalAmount = $amount;
-    
-    // Pass variables directly - they will be modified by reference
-    runHook($this, 'before_payment', $userId, $amount);
-    
-    // Use modified values directly
-    return [
-        'original_amount' => $originalAmount,
-        'final_amount' => $amount,  // Modified directly by hooks
-        'user_id' => $userId
-    ];
-}
+use PhpDiffused\Lifecycle\Attributes\LifeCyclePoint;
+use PhpDiffused\Lifecycle\Traits\HasLifecycle;
 
-// Hook implementation
-class ApplyDiscountHook implements LifeCycleHook
+#[LifeCyclePoint('before_payment', ['user_id', 'amount'])]
+class PaymentService
 {
+    use HasLifecycle;
+    
+    public function processPayment(int $userId, float $amount): array
+    {
+        $originalAmount = $amount;
+        
+        // Pass variables directly - they will be modified by reference
+        runHook($this, 'before_payment', $userId, $amount);
+        
+        // Use modified values directly
+        return [
+            'original_amount' => $originalAmount,
+            'final_amount' => $amount,  // Modified directly by hooks
+            'user_id' => $userId
+        ];
+    }
+}
+```
+
+```php
+use PhpDiffused\Lifecycle\Attributes\Hook;
+use PhpDiffused\Lifecycle\Attributes\Severity;
+use PhpDiffused\Lifecycle\Traits\Hookable;
+
+// Modern hook implementation with attributes
+#[Hook(scope: 'PaymentService', point: 'before_payment', severity: Severity::Optional)]
+class ApplyDiscountHook
+{
+    use Hookable;
+    
     public function handle(array &$args): void
     {
         // The framework maps your variables to the array automatically
@@ -539,12 +667,13 @@ Multiple hooks can chain modifications:
 $amount = 100.00;
 $userId = 123;
 
-$service->addHook(new ApplyDiscountHook());  // 100 -> 90
-$service->addHook(new ApplyTaxHook());       // 90 -> 97.20
+// Hooks registered in Kernel:
+// 1. ApplyDiscountHook  // 100 -> 90
+// 2. ApplyTaxHook       // 90 -> 97.20
 
-$service->runHook('before_payment', $userId, $amount);
+runHook(PaymentService::class, 'before_payment', $userId, $amount);
 
-echo $amount; // 97.20 - modified directly!
+echo $amount; // 97.20 - modified directly by hooks!
 ```
 
 ### Hook Conditions

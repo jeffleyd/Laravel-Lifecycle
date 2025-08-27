@@ -5,40 +5,53 @@ namespace App\Hooks;
 class Kernel
 {
     /**
-     * Hook execution order and custom hook registration.
+     * Hook registration and execution order.
      * 
-     * This property serves two purposes:
-     * 1. Define execution order for auto-discovered hooks
-     * 2. Register hooks from custom locations (outside auto-discovery)
+     * Register all your hooks here. The system no longer uses auto-discovery.
+     * All hooks must be explicitly registered in this Kernel.
+     * 
+     * Supports both old-style hooks (with interfaces) and new-style hooks (with attributes).
      * 
      * @var array<class-string, array<string, array<class-string>>>
      */
     public array $hooks = [
-        // Example 1: Control execution order of auto-discovered hooks
+        // Example: PaymentService with new attribute-based hooks
         // \App\Services\PaymentService::class => [
-        //     'payment_begin' => [
-        //         \App\Hooks\PaymentService\ValidateAmountHook::class,  // Auto-discovered
-        //         \App\Hooks\PaymentService\FraudDetectionHook::class,  // Auto-discovered
-        //         \App\Hooks\PaymentService\ApplyDiscountHook::class,   // Auto-discovered
+        //     'before_payment' => [
+        //         \App\Hooks\FraudDetectionHook::class,      // #[Hook] attribute-based
+        //         \App\Hooks\ValidateAmountHook::class,      // #[Hook] attribute-based
+        //     ],
+        //     'after_payment' => [
+        //         \App\Hooks\PaymentEmailHook::class,        // #[Hook] attribute-based
+        //         \App\Hooks\PaymentAnalyticsHook::class,    // #[Hook] attribute-based
+        //     ],
+        //     'payment_failed' => [
+        //         \App\Hooks\PaymentFailureNotificationHook::class, // #[Hook] attribute-based
         //     ],
         // ],
         
-        // Example 2: Register hooks from custom locations
+        // Example: OrderService with mixed hook styles
         // \App\Services\OrderService::class => [
-        //     'order_created' => [
-        //         \External\Package\Hooks\InventoryCheck::class,       // Custom location
-        //         \App\Modules\Shipping\Hooks\CalculateShipping::class, // Custom location
-        //         \App\Hooks\OrderService\SendConfirmation::class,     // Auto-discovered
-        //     ]
+        //     'before_create' => [
+        //         \App\Hooks\OrderService\InventoryCheckHook::class,    // Old-style interface
+        //         \App\Hooks\ValidateOrderHook::class,                  // New-style attribute
+        //     ],
+        //     'after_create' => [
+        //         \App\Hooks\OrderService\SendConfirmationHook::class,  // Old-style interface
+        //         \App\Hooks\OrderAnalyticsHook::class,                 // New-style attribute
+        //     ],
         // ],
         
-        // Example 3: Mix auto-discovered hooks with custom ones
+        // Example: UserService
         // \App\Services\UserService::class => [
         //     'user_created' => [
-        //         \App\Hooks\UserService\ValidateData::class,          // Auto-discovered (will be found)
-        //         \Packages\Analytics\UserTrackingHook::class,         // Custom (will be registered)
-        //         \App\CustomHooks\WelcomeEmailHook::class,            // Custom (will be registered)
-        //     ]
+        //         \App\Hooks\UserService\ValidateDataHook::class,       // Any style
+        //         \App\Hooks\WelcomeEmailHook::class,                   // Any style
+        //         \External\Package\Hooks\UserAnalyticsHook::class,     // External packages
+        //     ],
+        //     'user_updated' => [
+        //         \App\Hooks\UserService\CacheInvalidationHook::class,  // Any style
+        //     ],
         // ],
     ];
 }

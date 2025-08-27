@@ -20,9 +20,23 @@ abstract class TestCase extends BaseTestCase
         $this->container = new Container();
         Container::setInstance($this->container);
 
+        // Mock config for tests
+        $this->container->bind('config', function () {
+            return new class {
+                public function get($key, $default = null) {
+                    return match ($key) {
+                        'lifecycle.debug' => false,
+                        'lifecycle.error_handling.log_failures' => true,
+                        'lifecycle.error_handling.throw_on_critical' => true,
+                        default => $default
+                    };
+                }
+            };
+        });
+
         $this->provider = new LifeCycleServiceProvider($this->container);
 
-        $this->manager = new LifeCycleManager($this->provider);
+        $this->manager = new LifeCycleManager();
         $this->container->singleton(LifeCycleManager::class, function () {
             return $this->manager;
         });

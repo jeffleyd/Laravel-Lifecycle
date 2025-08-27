@@ -3,206 +3,229 @@
 namespace PhpDiffused\Lifecycle\Tests\Unit;
 
 use PhpDiffused\Lifecycle\Tests\TestCase;
-use PhpDiffused\Lifecycle\Contracts\LifeCycle;
-use PhpDiffused\Lifecycle\Contracts\LifeCycleHook;
+use PhpDiffused\Lifecycle\Attributes\LifeCyclePoint;
+use PhpDiffused\Lifecycle\Attributes\Hook;
+use PhpDiffused\Lifecycle\Attributes\Severity;
+use PhpDiffused\Lifecycle\Traits\HasLifecycle;
+use PhpDiffused\Lifecycle\Traits\Hookable;
 
+/**
+ * Mutable hooks tests - Pass by reference functionality
+ */
 class MutableHooksTest extends TestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
-        $this->manager->setHooksFor(MutableService::class, collect());
+        $this->manager->setHooksFor(OrderService::class, collect());
+        $this->manager->setHooksFor(PaymentProcessingService::class, collect());
     }
     
-    public function test_hook_can_modify_values_passed_by_reference(): void
+    /** @test */
+    public function it_allows_hooks_to_modify_values_by_reference(): void
     {
-        $hook = new ModifyingHook();
-        addHook(MutableService::class, $hook);
-        
-        $value1 = 'original';
-        $value2 = 100;
-        
-        runHook(MutableService::class, 'process', $value1, $value2);
-
-        $this->assertEquals('modified', $value1);
-        $this->assertEquals(200, $value2);
-    }
-    
-    public function test_hook_modifies_values_by_reference(): void
-    {
-        addHook(MutableService::class, new DiscountHook());
+        $hook = new ApplyDiscountHook();
+        addHook(PaymentProcessingService::class, $hook);
         
         $userId = 123;
         $amount = 100.00;
-        $discount = 0.00;
+        $originalAmount = $amount;
         
-        runHook(MutableService::class, 'apply_discount', $userId, $amount, $discount);
+
+        runHook(PaymentProcessingService::class, 'before_payment', $userId, $amount);
 
         $this->assertEquals(123, $userId);
-        $this->assertEquals(100.00, $amount);
-        $this->assertEquals(10.00, $discount);
+        $this->assertEquals(90.00, $amount);
+        $this->assertNotEquals($originalAmount, $amount);
     }
     
-    public function test_multiple_hooks_can_chain_modifications(): void
+    /** @test */
+    public function it_supports_multiple_hooks_chaining_modifications(): void
     {
-        addHook(MutableService::class, new DiscountHook());
-        addHook(MutableService::class, new TaxHook());
-        addHook(MutableService::class, new RoundingHook());
+        addHook(PaymentProcessingService::class, new ApplyDiscountHook());
+        addHook(PaymentProcessingService::class, new ApplyTaxHook());
         
         $userId = 123;
         $amount = 100.00;
-        $discount = 0.00;
         
-        runHook(MutableService::class, 'apply_discount', $userId, $amount, $discount);
-
-        $this->assertEquals(10.00, $discount);
-        $this->assertEquals(95.00, $amount);
+        runHook(PaymentProcessingService::class, 'before_payment', $userId, $amount);
+        
+        $this->assertEquals(97.20, $amount);
+        $this->assertEquals(123, $userId);
     }
     
-    public function test_real_world_payment_flow_with_mutations(): void
+    /** @test */
+    public function it_demonstrates_real_world_payment_flow_with_mutations(): void
     {
-        $paymentService = new PaymentService();
-
-        addHook(PaymentService::class, new ValidatePaymentHook());
-        addHook(PaymentService::class, new ApplyDiscountHook());
-        addHook(PaymentService::class, new CalculateTaxHook());
+        // Set up hooks for payment processing
+        addHook(PaymentProcessingService::class, new ValidateAmountHook());
+        addHook(PaymentProcessingService::class, new ApplyDiscountHook());
+        addHook(PaymentProcessingService::class, new ApplyTaxHook());
         
-        $result = $paymentService->processPayment(100.00, 'USD');
+        $service = new PaymentProcessingService();
+        $result = $service->processPayment(123, 100.00);
         
+        // Verify the payment flow worked correctly with mutations
         $this->assertEquals(100.00, $result['original_amount']);
-        $this->assertEquals(97.20, $result['final_amount']);
-        $this->assertEquals('USD', $result['currency']);
-    }
-}
-
-class MutableService implements LifeCycle
-{
-    public static function lifeCycle(): array
-    {
-        return [
-            'process' => ['value1', 'value2'],
-            'apply_discount' => ['userId', 'amount', 'discount'],
-        ];
-    }
-}
-
-class PaymentService implements LifeCycle
-{
-    public static function lifeCycle(): array
-    {
-        return [
-            'before_payment' => ['amount', 'currency'],
-            'after_payment' => ['transactionId', 'amount'],
-        ];
+        $this->assertEquals(97.20, $result['final_amount']); // After discount and tax
+        $this->assertEquals(123, $result['user_id']);
+        $this->assertArrayHasKey('payment_id', $result);
     }
     
-    public function processPayment(float $amount, string $currency): array
+    /** @test */
+    public function it_supports_calculate_total_with_spread_operator(): void
+    {
+        // Based on README example with spread operator
+        addHook(OrderService::class, new CalculateTaxHook());
+        addHook(OrderService::class, new ApplyDiscountCalculationHook());
+        
+        $service = new OrderService();
+        $result = $service->calculateTotal(['item1', 'item2']);
+        
+        $this->assertArrayHasKey('subtotal', $result);
+        $this->assertArrayHasKey('tax', $result);
+        $this->assertArrayHasKey('discount', $result);
+        $this->assertArrayHasKey('total', $result);
+        
+        // Verify calculations were modified by hooks
+        $this->assertGreaterThan(0, $result['tax']);
+        $this->assertGreaterThan(0, $result['discount']);
+        $this->assertEquals(
+            $result['subtotal'] + $result['tax'] - $result['discount'], 
+            $result['total']
+        );
+    }
+    
+    /** @test */
+    public function it_preserves_original_values_when_no_hooks_modify_them(): void
+    {
+        // Hook that doesn't modify values
+        addHook(PaymentProcessingService::class, new LoggingHook());
+        
+        $userId = 123;
+        $amount = 100.00;
+        $originalUserId = $userId;
+        $originalAmount = $amount;
+        
+        runHook(PaymentProcessingService::class, 'before_payment', $userId, $amount);
+        
+        $this->assertEquals($originalUserId, $userId);
+        $this->assertEquals($originalAmount, $amount);
+    }
+    
+    /** @test */
+    public function it_handles_conditional_modifications(): void
+    {
+        // Test with high-value transaction (should get discount)
+        $this->manager->setHooksFor(PaymentProcessingService::class, collect());
+        addHook(PaymentProcessingService::class, new ConditionalDiscountHook());
+        
+        $userId = 123;
+        $highAmount = 1001.00; // Maior que 1000 para ativar a condição
+        
+        runHook(PaymentProcessingService::class, 'before_payment', $userId, $highAmount);
+        
+        $this->assertEquals(900.90, $highAmount); // 10% discount applied (1001 * 0.9)
+        
+        // Reset hooks for second test
+        $this->manager->setHooksFor(PaymentProcessingService::class, collect());
+        addHook(PaymentProcessingService::class, new ConditionalDiscountHook());
+        
+        // Test with low-value transaction (should not get discount)
+        $lowAmount = 50.00;
+        
+        runHook(PaymentProcessingService::class, 'before_payment', $userId, $lowAmount);
+        
+        $this->assertEquals(50.00, $lowAmount); // No discount applied
+    }
+}
+
+
+#[LifeCyclePoint('before_payment', ['user_id', 'amount'])]
+#[LifeCyclePoint('after_payment', ['user_id', 'amount', 'payment_id'])]
+class PaymentProcessingService
+{
+    use HasLifecycle;
+    
+    public function processPayment(int $userId, float $amount): array
     {
         $originalAmount = $amount;
         
-        runHook($this, 'before_payment', $amount, $currency);
+
+        runHook($this, 'before_payment', $userId, $amount);
         
-        // Simulate payment processing
-        $transactionId = 'TXN-' . uniqid();
+        // Use modified values directly (README example)
+        $paymentId = 'PAY_' . uniqid();
         
-        runHook($this, 'after_payment', $transactionId, $amount);
+        runHook($this, 'after_payment', $userId, $amount, $paymentId);
         
         return [
             'original_amount' => $originalAmount,
-            'final_amount' => $amount,
-            'currency' => $currency,
-            'transaction_id' => $transactionId,
+            'final_amount' => $amount,  // Modified directly by hooks (README example)
+            'user_id' => $userId,
+            'payment_id' => $paymentId,
         ];
     }
 }
 
-class ModifyingHook implements LifeCycleHook
+
+#[LifeCyclePoint('calculate_total', ['items', 'subtotal', 'tax', 'discount'])]
+class OrderService
 {
-    public function getLifeCycle(): string
+    use HasLifecycle;
+    
+    public function calculateTotal(array $items): array
     {
-        return 'process';
+        $subtotal = $this->calculateSubtotal($items);
+        $tax = 0;
+        $discount = 0;
+        
+
+        runHook($this, 'calculate_total', $items, $subtotal, $tax, $discount);
+        
+        return [
+            'subtotal' => $subtotal,
+            'tax' => $tax,
+            'discount' => $discount,
+            'total' => $subtotal + $tax - $discount
+        ];
     }
     
-    public function getSeverity(): string
+    private function calculateSubtotal(array $items): float
     {
-        return 'optional';
-    }
-    
-    public function handle(array &$args): void
-    {
-        $args['value1'] = 'modified';
-        $args['value2'] = $args['value2'] * 2;
+        return count($items) * 50.0; // $50 per item
     }
 }
 
-class DiscountHook implements LifeCycleHook
+
+#[Hook(scope: 'PaymentProcessingService', point: 'before_payment', severity: Severity::Optional)]
+class ApplyDiscountHook
 {
-    public function getLifeCycle(): string
-    {
-        return 'apply_discount';
-    }
-    
-    public function getSeverity(): string
-    {
-        return 'optional';
-    }
+    use Hookable;
     
     public function handle(array &$args): void
     {
-        // Apply 10% discount
-        $args['discount'] = $args['amount'] * 0.10;
+        $args['amount'] *= 0.9;
     }
 }
 
-class TaxHook implements LifeCycleHook
+
+#[Hook(scope: 'PaymentProcessingService', point: 'before_payment', severity: Severity::Optional)]
+class ApplyTaxHook
 {
-    public function getLifeCycle(): string
-    {
-        return 'apply_discount';
-    }
-    
-    public function getSeverity(): string
-    {
-        return 'optional';
-    }
+    use Hookable;
     
     public function handle(array &$args): void
     {
-        $netAmount = $args['amount'] - $args['discount'];
-        $tax = $netAmount * 0.08;
-        $args['amount'] = $netAmount + $tax;
+        $args['amount'] *= 1.08;
     }
 }
 
-class RoundingHook implements LifeCycleHook
-{
-    public function getLifeCycle(): string
-    {
-        return 'apply_discount';
-    }
-    
-    public function getSeverity(): string
-    {
-        return 'optional';
-    }
-    
-    public function handle(array &$args): void
-    {
-        $args['amount'] = round($args['amount'] / 5) * 5;
-    }
-}
 
-class ValidatePaymentHook implements LifeCycleHook
+#[Hook(scope: 'PaymentProcessingService', point: 'before_payment', severity: Severity::Critical)]
+class ValidateAmountHook
 {
-    public function getLifeCycle(): string
-    {
-        return 'before_payment';
-    }
-    
-    public function getSeverity(): string
-    {
-        return 'critical';
-    }
+    use Hookable;
     
     public function handle(array &$args): void
     {
@@ -212,38 +235,52 @@ class ValidatePaymentHook implements LifeCycleHook
     }
 }
 
-class ApplyDiscountHook implements LifeCycleHook
+
+#[Hook(scope: 'OrderService', point: 'calculate_total', severity: Severity::Optional)]
+class CalculateTaxHook
 {
-    public function getLifeCycle(): string
-    {
-        return 'before_payment';
-    }
-    
-    public function getSeverity(): string
-    {
-        return 'optional';
-    }
+    use Hookable;
     
     public function handle(array &$args): void
     {
-        $args['amount'] = $args['amount'] * 0.90;
+        $args['tax'] = $args['subtotal'] * 0.10;
     }
 }
 
-class CalculateTaxHook implements LifeCycleHook
+
+#[Hook(scope: 'OrderService', point: 'calculate_total', severity: Severity::Optional)]
+class ApplyDiscountCalculationHook
 {
-    public function getLifeCycle(): string
-    {
-        return 'before_payment';
-    }
-    
-    public function getSeverity(): string
-    {
-        return 'optional';
-    }
+    use Hookable;
     
     public function handle(array &$args): void
     {
-        $args['amount'] = $args['amount'] * 1.08;
+        $args['discount'] = $args['subtotal'] * 0.05;
+    }
+}
+
+
+#[Hook(scope: 'PaymentProcessingService', point: 'before_payment', severity: Severity::Optional)]
+class LoggingHook
+{
+    use Hookable;
+    
+    public function handle(array &$args): void
+    {
+
+    }
+}
+
+
+#[Hook(scope: 'PaymentProcessingService', point: 'before_payment', severity: Severity::Optional)]
+class ConditionalDiscountHook
+{
+    use Hookable;
+    
+    public function handle(array &$args): void
+    {
+        if ($args['amount'] > 1000) {
+            $args['amount'] *= 0.9;
+        }
     }
 }
