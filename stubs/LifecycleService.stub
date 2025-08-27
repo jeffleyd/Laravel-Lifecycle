@@ -1,0 +1,41 @@
+<?php
+
+namespace {{ namespace }};
+
+use PhpDiffused\Lifecycle\Attributes\LifeCyclePoint;
+use PhpDiffused\Lifecycle\Traits\HasLifecycle;
+
+#[LifeCyclePoint('before_action', ['data'])]
+#[LifeCyclePoint('after_action', ['data', 'result'])]
+#[LifeCyclePoint('action_failed', ['data', 'error'])]
+class {{ class }}
+{
+    use HasLifecycle;
+
+    public function processAction(array $data): array
+    {
+        $this->runLifeCycleHook('before_action', $data);
+
+        try {
+            // Your business logic here
+            $result = $this->performAction($data);
+            
+            $this->runLifeCycleHook('after_action', $data, $result);
+            
+            return $result;
+        } catch (\Exception $e) {
+            $this->runLifeCycleHook('action_failed', $data, $e->getMessage());
+            throw $e;
+        }
+    }
+
+    private function performAction(array $data): array
+    {
+        // Implement your action logic here
+        return [
+            'success' => true,
+            'data' => $data,
+            'processed_at' => now()
+        ];
+    }
+}

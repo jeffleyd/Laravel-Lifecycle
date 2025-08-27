@@ -12,15 +12,8 @@ class LifeCycleServiceProvider extends ServiceProvider
             __DIR__.'/../config/lifecycle.php', 'lifecycle'
         );
 
-        // Registrar apenas o KernelBasedLifeCycleManager
         $this->app->singleton(LifeCycleManager::class, function ($app) {
             return new LifeCycleManager();
-        });
-
-        // Manter compatibilidade com o LifeCycleManager antigo se necessário
-        $this->app->singleton(LifeCycleManager::class, function ($app) {
-            // Retornar o novo manager para manter compatibilidade
-            return $app->make(LifeCycleManager::class);
         });
     }
     
@@ -37,9 +30,10 @@ class LifeCycleServiceProvider extends ServiceProvider
                 __DIR__.'/../config/lifecycle.php' => config_path('lifecycle.php'),
             ], 'lifecycle-config');
             
-            // Comando para limpar cache
+            // Comandos
             $this->commands([
-                \PhpDiffused\Lifecycle\Console\ClearHooksCacheCommand::class,
+                \PhpDiffused\Lifecycle\Console\MakeLifecycleCommand::class,
+                \PhpDiffused\Lifecycle\Console\MakeHookCommand::class,
             ]);
         }
     }

@@ -1,0 +1,35 @@
+<?php
+
+namespace App\Hooks;
+
+use PhpDiffused\Lifecycle\Attributes\Hook;
+use PhpDiffused\Lifecycle\Attributes\Severity;
+use PhpDiffused\Lifecycle\Traits\Hookable;
+
+#[Hook(scope: '{{ scope }}', point: '{{ point }}', severity: Severity::{{ severity }})]
+class {{ class }}
+{
+    use Hookable;
+
+    /**
+     * Handle the lifecycle hook
+     *
+     * @param array &$args Arguments passed by reference for mutation
+     * @return void
+     */
+    public function handle(array &$args): void
+    {
+        // Implement your hook logic here
+        // You can modify the arguments by reference if needed
+        
+        // Example: logging
+        logger()->info("{{ class }} executed", [
+            'arguments' => array_keys($args),
+            'hook_point' => '{{ point }}',
+            'scope' => '{{ scope }}'
+        ]);
+        
+        // Example: data modification
+        // $args[0] = $args[0] * 1.1; // Increase first argument by 10%
+    }
+}

@@ -202,29 +202,40 @@ return [
 ];
 ```
 
-### Cache Management
+### Artisan Commands
 
-Clear the hooks cache when you add or modify hooks:
+Generate lifecycle classes and hooks:
 
 ```bash
-php artisan lifecycle:clear-cache
+# Generate a new lifecycle service class
+php artisan lifecycle:main App/Services/PaymentService
+
+# Generate a new hook (saved in app/Hooks/)
+php artisan lifecycle:hook ValidatePaymentHook --scope=payment --point=before_payment --severity=Critical
+php artisan lifecycle:hook ProcessDiscountHook --scope=payment --point=after_payment --severity=Optional
 ```
 
-### Disabling Auto-Discovery
+### Debug Mode
 
-If you prefer to manually register hooks (for better performance or control):
+Enable detailed debug logging:
 
 ```php
-// In config/lifecycle.php
-'auto_discovery' => false,
+// In .env
+LIFECYCLE_DEBUG=true
 
-// Then manually register in a service provider
-public function boot()
-{
-    $paymentService = app(PaymentService::class);
-    $paymentService->addHook(new ValidatePaymentHook());
-    $paymentService->addHook(new ProcessPaymentHook());
-}
+// Or in config/lifecycle.php
+'debug' => true,
+```
+
+Debug output shows the complete execution flow:
+
+```
+=== [App\Services\PaymentService] Lifecycle 'process_payment' started ===
+→ [Hook] App\Hooks\DiscountHook executing...
+  Variables before: {"amount": "1000.0", "user_id": "123"}
+✓ [Hook] App\Hooks\DiscountHook completed (modified variables)
+  Variables after: {"amount": "900.0", "user_id": "123"}
+=== [App\Services\PaymentService] Lifecycle 'process_payment' completed ===
 ```
 
 ## 🏗️ Architecture Overview

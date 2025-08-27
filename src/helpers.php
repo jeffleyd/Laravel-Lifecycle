@@ -23,8 +23,7 @@ if (!function_exists('runHook')) {
      */
     function runHook($target, string $lifeCycle, &...$args): void
     {
-        /** @var LifeCycleManager $manager */
-        $manager = app(LifeCycleManager::class);
+        $manager = new LifeCycleManager;
         $manager->runHook($target, $lifeCycle, ...$args);
     }
 }
@@ -42,9 +41,8 @@ if (!function_exists('addHook')) {
     function addHook($target, $hook): void
     {
         $className = is_object($target) ? get_class($target) : $target;
-        
-        /** @var LifeCycleManager $manager */
-        $manager = app(LifeCycleManager::class);
+
+        $manager = new LifeCycleManager;
         $manager->addHook($className, $hook);
     }
 }
@@ -62,9 +60,8 @@ if (!function_exists('removeHooksFor')) {
     function removeHooksFor($target, string $lifeCycle): void
     {
         $className = is_object($target) ? get_class($target) : $target;
-        
-        /** @var LifeCycleManager $manager */
-        $manager = app(LifeCycleManager::class);
+
+        $manager = new LifeCycleManager;
         $manager->removeHooksFor($className, $lifeCycle);
     }
 }

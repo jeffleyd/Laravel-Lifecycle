@@ -65,17 +65,36 @@ class LifeCycleManager
             $filteredHooks = $kernelHooks;
         }
 
-        if (function_exists('config') && config('lifecycle.debug', false)) {
-            $this->logDebugInfo($className, $lifeCycle, $filteredHooks, $argsArray);
+        $debugEnabled = function_exists('config') && config('lifecycle.debug', false);
+        
+        if ($debugEnabled) {
+            $this->logLifecycleStart($className, $lifeCycle, $filteredHooks, $argsArray);
         }
 
-        $filteredHooks->each(function (object $hook) use (&$argsArray, $lifeCycle, $className) {
+        $filteredHooks->each(function (object $hook) use (&$argsArray, $lifeCycle, $className, $debugEnabled) {
             try {
+                if ($debugEnabled) {
+                    $beforeState = $this->captureVariableState($argsArray);
+                    $this->logHookStart($hook, $beforeState);
+                }
+                
                 $hook->handle($argsArray);
+                
+                if ($debugEnabled) {
+                    $afterState = $this->captureVariableState($argsArray);
+                    $this->logHookEnd($hook, $beforeState, $afterState);
+                }
             } catch (\Throwable $e) {
+                if ($debugEnabled) {
+                    $this->logHookError($hook, $e);
+                }
                 $this->handleError($hook, $e, $lifeCycle, $className);
             }
         });
+        
+        if ($debugEnabled) {
+            $this->logLifecycleEnd($className, $lifeCycle, $argsArray);
+        }
     }
     
     protected function classHasLifecycle(string $className): bool
@@ -225,16 +244,135 @@ class LifeCycleManager
         }
     }
     
-    protected function logDebugInfo(string $className, string $lifeCycle, Collection $hooks, array $args): void
+    protected function logLifecycleStart(string $className, string $lifeCycle, Collection $hooks, array $args): void
     {
         if (function_exists('logger') && app()->bound('log')) {
-            logger()->debug("Executing hooks for lifecycle '{$lifeCycle}' in class '{$className}'", [
+            logger()->debug("=== [{$className}] Lifecycle '{$lifeCycle}' started ===", [
                 'class' => $className,
                 'lifecycle' => $lifeCycle,
                 'hooks_count' => $hooks->count(),
                 'hooks' => $hooks->map(fn($hook) => get_class($hook))->toArray(),
-                'arguments' => array_keys($args)
+                'variables' => $this->formatVariables($args)
             ]);
         }
+    }
+    
+    protected function logLifecycleEnd(string $className, string $lifeCycle, array $args): void
+    {
+        if (function_exists('logger') && app()->bound('log')) {
+            logger()->debug("=== [{$className}] Lifecycle '{$lifeCycle}' completed ===", [
+                'class' => $className,
+                'lifecycle' => $lifeCycle,
+                'final_variables' => $this->formatVariables($args)
+            ]);
+        }
+    }
+    
+    protected function logHookStart(object $hook, array $beforeState): void
+    {
+        if (function_exists('logger') && app()->bound('log')) {
+            $hookClass = get_class($hook);
+            $severity = method_exists($hook, 'getSeverity') ? $hook->getSeverity() : 'optional';
+            
+            logger()->debug("→ [Hook] {$hookClass} executing...", [
+                'hook' => $hookClass,
+                'severity' => $severity,
+                'variables_before' => $beforeState
+            ]);
+        }
+    }
+    
+    protected function logHookEnd(object $hook, array $beforeState, array $afterState): void
+    {
+        if (function_exists('logger') && app()->bound('log')) {
+            $hookClass = get_class($hook);
+            $changes = $this->detectChanges($beforeState, $afterState);
+            
+            $message = "✓ [Hook] {$hookClass} completed";
+            if (!empty($changes)) {
+                $message .= " (modified variables)";
+            }
+            
+            logger()->debug($message, [
+                'hook' => $hookClass,
+                'variables_after' => $afterState,
+                'changes_detected' => !empty($changes),
+                'changes' => $changes
+            ]);
+        }
+    }
+    
+    protected function logHookError(object $hook, \Throwable $e): void
+    {
+        if (function_exists('logger') && app()->bound('log')) {
+            $hookClass = get_class($hook);
+            $severity = method_exists($hook, 'getSeverity') ? $hook->getSeverity() : 'optional';
+            
+            logger()->debug("✗ [Hook] {$hookClass} failed", [
+                'hook' => $hookClass,
+                'severity' => $severity,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+    
+    protected function captureVariableState(array $args): array
+    {
+        $state = [];
+        foreach ($args as $key => $value) {
+            $state[$key] = $this->serializeValue($value);
+        }
+        return $state;
+    }
+    
+    protected function detectChanges(array $before, array $after): array
+    {
+        $changes = [];
+        
+        foreach ($before as $key => $beforeValue) {
+            $afterValue = $after[$key] ?? null;
+            if ($beforeValue !== $afterValue) {
+                $changes[$key] = [
+                    'before' => $beforeValue,
+                    'after' => $afterValue
+                ];
+            }
+        }
+        
+        return $changes;
+    }
+    
+    protected function formatVariables(array $args): array
+    {
+        $formatted = [];
+        foreach ($args as $key => $value) {
+            $formatted[$key] = $this->serializeValue($value);
+        }
+        return $formatted;
+    }
+    
+    protected function serializeValue($value): string
+    {
+        if (is_null($value)) {
+            return 'null';
+        }
+        
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+        
+        if (is_scalar($value)) {
+            return (string) $value;
+        }
+        
+        if (is_array($value)) {
+            return 'array(' . count($value) . ' items)';
+        }
+        
+        if (is_object($value)) {
+            return get_class($value) . ' object';
+        }
+        
+        return gettype($value);
     }
 }
