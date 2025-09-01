@@ -2,7 +2,6 @@
 
 namespace PhpDiffused\Lifecycle;
 
-use Illuminate\Support\Collection;
 use PhpDiffused\Lifecycle\Exceptions\HookExecutionException;
 use PhpDiffused\Lifecycle\Exceptions\InvalidLifeCycleException;
 use PhpDiffused\Lifecycle\Traits\HasLifecycle;
@@ -15,11 +14,13 @@ class LifeCycleManager
     
     public function __construct()
     {
-        if (class_exists(\App\Hooks\Kernel::class)) {
-            $this->kernel = new \App\Hooks\Kernel();
-        }
+        $this->kernel = new \App\Hooks\Kernel();
     }
-    
+
+    /**
+     * @throws InvalidLifeCycleException
+     * @throws HookExecutionException
+     */
     public function runHook($target, string $lifeCycle, &...$args): void
     {
         $className = is_object($target) ? get_class($target) : $target;
