@@ -16,18 +16,14 @@ class PaymentAnalyticsHook
         $userId = $args['user_id'];
         $amount = $args['amount'];
         $paymentId = $args['payment_id'];
-        
-        // Registrar evento de analytics
+
         $this->trackPaymentEvent($userId, $amount, $paymentId);
         
-        echo "📊 Evento de analytics registrado - Pagamento: {$paymentId}\n";
+        echo "📊 Analytics events - Payment: {$paymentId}\n";
     }
     
     private function trackPaymentEvent(int $userId, float $amount, string $paymentId): void
     {
-        // Aqui você enviaria dados para sua plataforma de analytics
-        // Por exemplo: Google Analytics, Mixpanel, Segment, etc.
-        
         $eventData = [
             'event' => 'payment_completed',
             'user_id' => $userId,
@@ -36,15 +32,5 @@ class PaymentAnalyticsHook
             'currency' => 'BRL',
             'timestamp' => now()->toISOString()
         ];
-        
-        // Exemplo de envio para analytics
-        /*
-        Analytics::track('payment_completed', $eventData);
-        */
-        
-        // Ou salvar em banco de dados local
-        /*
-        DB::table('payment_events')->insert($eventData);
-        */
     }
 }

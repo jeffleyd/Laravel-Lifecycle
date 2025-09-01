@@ -15,31 +15,21 @@ class FraudDetectionHook
     {
         $userId = $args['user_id'];
         $amount = $args['amount'];
-        
-        // Verificações de fraude
+
         $this->performFraudChecks($userId, $amount);
         
-        echo "🛡️ Verificação de fraude realizada para usuário {$userId} - Valor: R$ {$amount}\n";
+        echo "🛡️ Fraud verification for user: {$userId} - Amout: USD {$amount}\n";
     }
     
     private function performFraudChecks(int $userId, float $amount): void
     {
-        // Simular verificações de fraude
-        
-        // Verificar valores muito altos
         if ($amount > 10000) {
-            throw new \Exception("Valor suspeito detectado: R$ {$amount}");
+            throw new \Exception("Suspect amount: USD {$amount}");
         }
-        
-        // Verificar usuários suspeitos (simulação)
+
         $suspiciousUsers = [999, 998, 997];
         if (in_array($userId, $suspiciousUsers)) {
-            throw new \Exception("Usuário {$userId} está na lista de suspeitos");
+            throw new \Exception("User {$userId} is suspect list");
         }
-        
-        // Outras verificações de fraude...
-        // - Localização geográfica
-        // - Histórico de transações
-        // - Padrões de comportamento
     }
 }

@@ -20,7 +20,6 @@ class ExampleKernel
         \App\Services\PaymentService::class => [
             'before_payment' => [
                 \App\Hooks\FraudDetectionHook::class,      // Critical - runs first
-                \App\Hooks\ValidateAmountHook::class,      // Critical - validates amount
             ],
             'after_payment' => [
                 \App\Hooks\PaymentEmailHook::class,        // Optional - send email
@@ -28,30 +27,6 @@ class ExampleKernel
             ],
             'payment_failed' => [
                 \App\Hooks\PaymentFailureNotificationHook::class, // Optional - notify failure
-            ],
-        ],
-        
-        // OrderService hooks (example mixing old and new styles)
-        \App\Services\OrderService::class => [
-            'before_create' => [
-                \App\Hooks\OrderService\InventoryCheckHook::class,    // Old-style interface
-                \App\Hooks\ValidateOrderHook::class,                  // New-style attribute
-            ],
-            'after_create' => [
-                \App\Hooks\OrderService\SendConfirmationHook::class,  // Old-style interface
-                \App\Hooks\OrderAnalyticsHook::class,                 // New-style attribute
-            ],
-        ],
-        
-        // UserService hooks
-        \App\Services\UserService::class => [
-            'user_created' => [
-                \App\Hooks\UserService\ValidateDataHook::class,       // Any style
-                \App\Hooks\WelcomeEmailHook::class,                   // Any style
-                \External\Package\Hooks\UserAnalyticsHook::class,     // External packages
-            ],
-            'user_updated' => [
-                \App\Hooks\UserService\CacheInvalidationHook::class,  // Any style
             ],
         ],
     ];
