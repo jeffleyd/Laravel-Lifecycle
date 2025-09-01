@@ -16,7 +16,6 @@ class ExampleKernel
      * All hooks must be explicitly registered in this Kernel.
      */
     public array $hooks = [
-        // PaymentService hooks
         \App\Services\PaymentService::class => [
             'before_payment' => [
                 \App\Hooks\FraudDetectionHook::class,      // Critical - runs first
