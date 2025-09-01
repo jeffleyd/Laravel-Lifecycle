@@ -285,8 +285,8 @@ class AnalyzeLifecycleCommand extends Command
         $patterns = [
             "/\\\$args\[{$index}\]\s*=/",
             "/\\\$args\[{$index}\]\s*\*=|\/=|\+=|-=/",
-            "/\\\${$param}\s*=/",
-            "/\\\${$param}\s*\*=|\/=|\+=|-=/",
+            "/\\\$args\['{$param}'\]\s*=/",
+            "/\\\$args\['{$param}'\]\s*\*=|\/=|\+=|-=/",
         ];
         
         foreach ($patterns as $pattern) {
