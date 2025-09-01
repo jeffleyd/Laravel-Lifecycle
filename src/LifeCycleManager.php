@@ -5,6 +5,7 @@ namespace PhpDiffused\Lifecycle;
 use PhpDiffused\Lifecycle\Exceptions\HookExecutionException;
 use PhpDiffused\Lifecycle\Exceptions\InvalidLifeCycleException;
 use PhpDiffused\Lifecycle\Traits\HasLifecycle;
+use Illuminate\Support\Collection;
 
 class LifeCycleManager
 {
