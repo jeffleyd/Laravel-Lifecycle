@@ -117,13 +117,24 @@ Add the service provider to your `config/app.php`:
 ],
 ```
 
-### Publish Kernel (Recommended)
+> **Note:** When installing the library, the configuration file (`config/lifecycle.php`) and hooks kernel (`app/Hooks/Kernel.php`) are published automatically.
+
+### Manual Publishing (Optional)
+
+If you need to republish the files manually:
 
 ```bash
+# Publish only the kernel
 php artisan vendor:publish --tag=lifecycle-kernel
+
+# Publish only the configuration
+php artisan vendor:publish --tag=lifecycle-config
+
+# Publish all assets
+php artisan vendor:publish --tag=laravel-assets
 ```
 
-This creates `app/Hooks/Kernel.php` where you register all your hooks:
+The published kernel (`app/Hooks/Kernel.php`) is where you register all your hooks:
 
 ```php
 <?php

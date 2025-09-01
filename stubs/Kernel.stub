@@ -18,39 +18,15 @@ class Kernel
         // Example: PaymentService with new attribute-based hooks
         // \App\Services\PaymentService::class => [
         //     'before_payment' => [
-        //         \App\Hooks\FraudDetectionHook::class,      // #[Hook] attribute-based
-        //         \App\Hooks\ValidateAmountHook::class,      // #[Hook] attribute-based
+        //         \App\Hooks\FraudDetectionHook::class,
+        //         \App\Hooks\ValidateAmountHook::class,
         //     ],
         //     'after_payment' => [
-        //         \App\Hooks\PaymentEmailHook::class,        // #[Hook] attribute-based
-        //         \App\Hooks\PaymentAnalyticsHook::class,    // #[Hook] attribute-based
+        //         \App\Hooks\PaymentEmailHook::class,
+        //         \App\Hooks\PaymentAnalyticsHook::class,
         //     ],
         //     'payment_failed' => [
-        //         \App\Hooks\PaymentFailureNotificationHook::class, // #[Hook] attribute-based
-        //     ],
-        // ],
-        
-        // Example: OrderService with mixed hook styles
-        // \App\Services\OrderService::class => [
-        //     'before_create' => [
-        //         \App\Hooks\OrderService\InventoryCheckHook::class,    // Old-style interface
-        //         \App\Hooks\ValidateOrderHook::class,                  // New-style attribute
-        //     ],
-        //     'after_create' => [
-        //         \App\Hooks\OrderService\SendConfirmationHook::class,  // Old-style interface
-        //         \App\Hooks\OrderAnalyticsHook::class,                 // New-style attribute
-        //     ],
-        // ],
-        
-        // Example: UserService
-        // \App\Services\UserService::class => [
-        //     'user_created' => [
-        //         \App\Hooks\UserService\ValidateDataHook::class,       // Any style
-        //         \App\Hooks\WelcomeEmailHook::class,                   // Any style
-        //         \External\Package\Hooks\UserAnalyticsHook::class,     // External packages
-        //     ],
-        //     'user_updated' => [
-        //         \App\Hooks\UserService\CacheInvalidationHook::class,  // Any style
+        //         \App\Hooks\PaymentFailureNotificationHook::class,
         //     ],
         // ],
     ];
