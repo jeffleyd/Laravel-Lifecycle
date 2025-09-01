@@ -89,18 +89,29 @@ class AnalyzeLifecycleCommand extends Command
 
         foreach ($lifecyclePoints as $point) {
             $pointName = $point['point'];
-            $hooks = $this->getHooksForLifecycle($kernelHooks, $registeredHooks, $pointName);
+            $hooks = $this->getHooksForLifecycle($kernelHooks, $registeredHooks, $pointName, $className);
             
             $critical = 0;
             $optional = 0;
             
-            foreach ($hooks as $hook) {
-                if (method_exists($hook, 'getSeverity')) {
-                    $severity = $hook->getSeverity();
-                    if ($severity === 'critical') {
-                        $critical++;
-                        $totalCritical++;
-                    } else {
+            foreach ($hooks as $hookClass) {
+                if (class_exists($hookClass)) {
+                    try {
+                        $hookInstance = new $hookClass();
+                        if (method_exists($hookInstance, 'getSeverity')) {
+                            $severity = $hookInstance->getSeverity();
+                            if ($severity === 'critical') {
+                                $critical++;
+                                $totalCritical++;
+                            } else {
+                                $optional++;
+                                $totalOptional++;
+                            }
+                        } else {
+                            $optional++;
+                            $totalOptional++;
+                        }
+                    } catch (\Exception $e) {
                         $optional++;
                         $totalOptional++;
                     }
@@ -115,10 +126,19 @@ class AnalyzeLifecycleCommand extends Command
             $this->line("  • {$pointName}: " . count($hooks) . " hooks ({$critical} critical, {$optional} optional)");
             
             if (!empty($hooks)) {
-                foreach ($hooks as $hook) {
-                    $hookClass = get_class($hook);
-                    $severity = method_exists($hook, 'getSeverity') ? $hook->getSeverity() : 'optional';
-                    $scope = method_exists($hook, 'getScope') ? $hook->getScope() : 'unknown';
+                foreach ($hooks as $hookClass) {
+                    $severity = 'optional';
+                    $scope = 'unknown';
+                    
+                    if (class_exists($hookClass)) {
+                        try {
+                            $hookInstance = new $hookClass();
+                            $severity = method_exists($hookInstance, 'getSeverity') ? $hookInstance->getSeverity() : 'optional';
+                            $scope = method_exists($hookInstance, 'getScope') ? $hookInstance->getScope() : 'unknown';
+                        } catch (\Exception $e) {
+                            // Use defaults
+                        }
+                    }
                     
                     $this->line("    - {$hookClass} [{$severity}] (scope: {$scope})");
                 }
@@ -146,9 +166,9 @@ class AnalyzeLifecycleCommand extends Command
         }
 
         try {
-            $kernel = app($kernelClass);
-            if (method_exists($kernel, 'hooks')) {
-                return $kernel->hooks();
+            $kernel = new $kernelClass();
+            if (property_exists($kernel, 'hooks')) {
+                return $kernel->hooks;
             }
         } catch (\Exception $e) {
             // Kernel not available
@@ -157,26 +177,15 @@ class AnalyzeLifecycleCommand extends Command
         return [];
     }
 
-    private function getHooksForLifecycle($kernelHooks, $registeredHooks, string $lifecycle): array
+    private function getHooksForLifecycle($kernelHooks, $registeredHooks, string $lifecycle, string $targetClass): array
     {
-        $hooks = collect();
+        $hooks = [];
 
-        foreach ($kernelHooks as $className => $classHooks) {
-            foreach ($classHooks as $hook) {
-                if (method_exists($hook, 'getLifeCycle') && $hook->getLifeCycle() === $lifecycle) {
-                    $hooks->push($hook);
-                }
-            }
+        if (isset($kernelHooks[$targetClass][$lifecycle])) {
+            $hooks = $kernelHooks[$targetClass][$lifecycle];
         }
 
-        $dynamicHooks = $registeredHooks->filter(function ($hook) use ($lifecycle) {
-            if (method_exists($hook, 'getLifeCycle')) {
-                return $hook->getLifeCycle() === $lifecycle;
-            }
-            return false;
-        });
-
-        return $hooks->merge($dynamicHooks)->toArray();
+        return $hooks;
     }
 
     private function analyzeSideEffects(string $className, array $lifecyclePoints, LifeCycleManager $manager): void
@@ -191,7 +200,7 @@ class AnalyzeLifecycleCommand extends Command
         
         foreach ($lifecyclePoints as $point) {
             $pointName = $point['point'];
-            $hooks = $this->getHooksForLifecycle($kernelHooks, $registeredHooks, $pointName);
+            $hooks = $this->getHooksForLifecycle($kernelHooks, $registeredHooks, $pointName, $className);
             $parameters = $point['arguments'];
             
             if (count($hooks) > 1) {
@@ -216,8 +225,7 @@ class AnalyzeLifecycleCommand extends Command
     {
         $modifyingHooks = [];
         
-        foreach ($hooks as $hook) {
-            $hookClass = get_class($hook);
+        foreach ($hooks as $hookClass) {
             $suspectedModifications = $this->detectPotentialModifications($hookClass, $parameters);
             
             if (!empty($suspectedModifications)) {
