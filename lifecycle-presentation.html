@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laravel LifeCycle Hooks - Apresentação</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            overflow: hidden;
+        }
+
+        .presentation {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .slide {
+            display: none;
+            width: 90%;
+            max-width: 1200px;
+            height: 90vh;
+            background: white;
+            border-radius: 20px;
+            padding: 60px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.2);
+            animation: slideIn 0.5s ease;
+            overflow-y: auto;
+        }
+
+        .slide.active {
+            display: block;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(100px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        h1 {
+            font-size: 48px;
+            margin-bottom: 30px;
+            color: #667eea;
+            font-weight: 700;
+        }
+
+        h2 {
+            font-size: 36px;
+            margin: 30px 0 20px;
+            color: #764ba2;
+            font-weight: 600;
+        }
+
+        h3 {
+            font-size: 28px;
+            margin: 25px 0 15px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .subtitle {
+            font-size: 24px;
+            color: #666;
+            margin-bottom: 40px;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+        }
+
+        li {
+            font-size: 22px;
+            line-height: 1.8;
+            margin: 15px 0;
+            padding-left: 40px;
+            position: relative;
+        }
+
+        li:before {
+            content: "▸";
+            position: absolute;
+            left: 10px;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .code-block, pre.code-block {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            overflow-x: auto;
+            white-space: pre;
+            line-height: 1.5;
+        }
+
+        .keyword {
+            color: #569cd6;
+        }
+
+        .string {
+            color: #ce9178;
+        }
+
+        .comment {
+            color: #6a9955;
+        }
+
+        .function {
+            color: #dcdcaa;
+        }
+
+        .variable {
+            color: #9cdcfe;
+        }
+
+        .navigation {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 15px;
+            z-index: 1000;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .slide-number {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            background: rgba(255,255,255,0.9);
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: 500;
+            color: #667eea;
+        }
+
+        .highlight {
+            background: linear-gradient(120deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 3px 10px;
+            border-radius: 5px;
+            display: inline-block;
+            margin: 0 5px;
+        }
+
+        .pros-cons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin: 30px 0;
+        }
+
+        .pros, .cons {
+            padding: 25px;
+            border-radius: 10px;
+        }
+
+        .pros {
+            background: rgba(76, 175, 80, 0.1);
+            border: 2px solid #4caf50;
+        }
+
+        .cons {
+            background: rgba(244, 67, 54, 0.1);
+            border: 2px solid #f44336;
+        }
+
+        .pros h3 {
+            color: #4caf50;
+        }
+
+        .cons h3 {
+            color: #f44336;
+        }
+
+        .diagram {
+            background: #f5f5f5;
+            border-radius: 10px;
+            padding: 30px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .comparison-table th {
+            background: #667eea;
+            color: white;
+        }
+
+        .comparison-table tr:hover {
+            background: #f5f5f5;
+        }
+
+        .title-slide {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .title-slide h1 {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .badges {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        .badge {
+            background: #667eea;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+
+        .log-output {
+            background: #0d0d0d;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin: 20px 0;
+            white-space: pre;
+            overflow-x: auto;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div class="presentation">
+        <div class="slide-number">
+            <span id="current-slide">1</span> / <span id="total-slides">12</span>
+        </div>
+
+        <!-- Slide 1: Título -->
+        <div class="slide active title-slide">
+            <h1>Laravel LifeCycle Hooks</h1>
+            <p class="subtitle">Arquitetura Modular para Times de Desenvolvimento</p>
+            <div class="badges">
+                <span class="badge">PHP 8+</span>
+                <span class="badge">Laravel</span>
+                <span class="badge">Attributes</span>
+                <span class="badge">Modular</span>
+            </div>
+        </div>
+
+        <!-- Slide 2: O Problema -->
+        <div class="slide">
+            <h1>O Problema</h1>
+            <h2>Cenário Tradicional</h2>
+            <ul>
+                <li>PaymentService com 2000+ linhas de código</li>
+                <li>5 desenvolvedores modificando a mesma classe</li>
+                <li>Conflitos constantes no Git</li>
+                <li>Testes quebrando frequentemente</li>
+                <li>Junior developers com medo de tocar no código</li>
+            </ul>
+            <div class="diagram">
+                <p>👨‍💻 Dev A → PaymentService.php ← Dev B 👩‍💻</p>
+                <p>↘️ 💥 Conflito! 💥 ↙️</p>
+                <p>👨‍💻 Dev C → PaymentService.php ← Dev D 👩‍💻</p>
+            </div>
+        </div>
+
+        <!-- Slide 3: A Solução -->
+        <div class="slide">
+            <h1>A Solução: LifeCycle Hooks</h1>
+            <h2>Arquitetura Inspirada em Microkernel</h2>
+            <ul>
+                <li><span class="highlight">Core mínimo</span> com lógica essencial</li>
+                <li><span class="highlight">Pontos de extensão</span> bem definidos</li>
+                <li><span class="highlight">Hooks plugáveis</span> sem modificar o core</li>
+                <li><span class="highlight">Isolamento</span> entre diferentes funcionalidades</li>
+            </ul>
+            <div class="diagram">
+                <p>🎯 PaymentService (Core)</p>
+                <p>↓</p>
+                <p>📍 Lifecycle Points</p>
+                <p>↓</p>
+                <p>🔌 Hook A | Hook B | Hook C | Hook D</p>
+            </div>
+        </div>
+
+        <!-- Slide 4: Como Funciona -->
+        <div class="slide">
+            <h1>Como Funciona</h1>
+            <pre class="code-block"><span class="comment">// 1. Defina os pontos de ciclo de vida</span>
+<span class="keyword">#[LifeCyclePoint</span>(<span class="string">'before_payment'</span>, [<span class="string">'user_id'</span>, <span class="string">'amount'</span>])]
+<span class="keyword">#[LifeCyclePoint</span>(<span class="string">'after_payment'</span>, [<span class="string">'user_id'</span>, <span class="string">'amount'</span>, <span class="string">'payment_id'</span>])]
+<span class="keyword">class</span> <span class="function">PaymentService</span>
+{
+    <span class="keyword">use</span> HasLifecycle;
+    
+    <span class="keyword">public function</span> <span class="function">process</span>(<span class="keyword">int</span> <span class="variable">$userId</span>, <span class="keyword">float</span> <span class="variable">$amount</span>): <span class="keyword">string</span>
+    {
+        <span class="comment">// Hooks podem modificar $amount por referência!</span>
+        <span class="function">runHook</span>(<span class="variable">$this</span>, <span class="string">'before_payment'</span>, <span class="variable">$userId</span>, <span class="variable">$amount</span>);
+        
+        <span class="comment">// Core logic usa valores potencialmente modificados</span>
+        <span class="variable">$paymentId</span> = <span class="variable">$this</span>-><span class="function">doPayment</span>(<span class="variable">$userId</span>, <span class="variable">$amount</span>);
+        
+        <span class="function">runHook</span>(<span class="variable">$this</span>, <span class="string">'after_payment'</span>, <span class="variable">$userId</span>, <span class="variable">$amount</span>, <span class="variable">$paymentId</span>);
+        
+        <span class="keyword">return</span> <span class="variable">$paymentId</span>;
+    }
+}</pre>
+        </div>
+
+        <!-- Slide 5: Hooks Independentes -->
+        <div class="slide">
+            <h1>Criando Hooks</h1>
+            <pre class="code-block"><span class="comment">// Hook com severidade crítica</span>
+<span class="keyword">#[Hook</span>(
+    scope: <span class="string">'PaymentService'</span>, 
+    point: <span class="string">'before_payment'</span>, 
+    severity: Severity::Critical
+)]
+<span class="keyword">class</span> <span class="function">FraudDetectionHook</span>
+{
+    <span class="keyword">use</span> Hookable;
+    
+    <span class="keyword">public function</span> <span class="function">handle</span>(<span class="keyword">array</span> <span class="variable">&$args</span>): <span class="keyword">void</span>
+    {
+        <span class="keyword">if</span> (<span class="variable">$this</span>-><span class="function">isFraudulent</span>(<span class="variable">$args</span>)) {
+            <span class="keyword">throw new</span> <span class="function">FraudException</span>(<span class="string">'Suspicious activity detected'</span>);
+        }
+    }
+}
+
+<span class="comment">// Hook opcional que modifica dados</span>
+<span class="keyword">#[Hook</span>(scope: <span class="string">'PaymentService'</span>, point: <span class="string">'before_payment'</span>, severity: Severity::Optional)]
+<span class="keyword">class</span> <span class="function">ApplyDiscountHook</span>
+{
+    <span class="keyword">public function</span> <span class="function">handle</span>(<span class="keyword">array</span> <span class="variable">&$args</span>): <span class="keyword">void</span>
+    {
+        <span class="comment">// Modifica amount por referência!</span>
+        <span class="variable">$args</span>[<span class="string">'amount'</span>] *= 0.9; <span class="comment">// 10% de desconto</span>
+    }
+}</pre>
+        </div>
+
+        <!-- Slide 6: Mutabilidade por Referência -->
+        <div class="slide">
+            <h1>Mutabilidade por Referência</h1>
+            <h2>Hooks podem modificar dados em cadeia</h2>
+            <pre class="code-block"><span class="comment">// Valor inicial</span>
+<span class="variable">$amount</span> = 100.00;
+<span class="variable">$userId</span> = 123;
+
+<span class="comment">// Executa hooks registrados no Kernel:</span>
+<span class="comment">// 1. ApplyDiscountHook    → $amount = 90.00  (10% desc)</span>
+<span class="comment">// 2. ApplyTaxHook         → $amount = 97.20  (8% tax)</span>
+<span class="comment">// 3. RoundingHook         → $amount = 97.00  (arredonda)</span>
+
+<span class="function">runHook</span>(PaymentService::<span class="keyword">class</span>, <span class="string">'before_payment'</span>, <span class="variable">$userId</span>, <span class="variable">$amount</span>);
+
+<span class="function">echo</span> <span class="variable">$amount</span>; <span class="comment">// 97.00 - modificado diretamente pelos hooks!</span></pre>
+            <ul>
+                <li>Variáveis são passadas por referência automaticamente</li>
+                <li>Múltiplos hooks podem modificar os mesmos dados</li>
+                <li>Ordem de execução importa (definida no Kernel)</li>
+                <li>Framework mapeia automaticamente variáveis para array</li>
+            </ul>
+        </div>
+
+        <!-- Slide 7: Severidade dos Hooks -->
+        <div class="slide">
+            <h1>Sistema de Severidade</h1>
+            <h2>Nem todos os hooks são iguais</h2>
+            <div class="pros-cons">
+                <div class="pros">
+                    <h3>⚠️ Critical Hooks</h3>
+                    <ul>
+                        <li>Detecção de fraude</li>
+                        <li>Validação de estoque</li>
+                        <li>Verificação de limites</li>
+                        <li>Falha = operação cancelada</li>
+                    </ul>
+                </div>
+                <div class="cons">
+                    <h3>💡 Optional Hooks</h3>
+                    <ul>
+                        <li>Envio de emails</li>
+                        <li>Analytics</li>
+                        <li>Notificações</li>
+                        <li>Falha = log e continua</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 8: Kernel e Controle -->
+        <div class="slide">
+            <h1>Controle Centralizado</h1>
+            <h2>app/Hooks/Kernel.php</h2>
+            <pre class="code-block"><span class="keyword">class</span> <span class="function">Kernel</span>
+{
+    <span class="keyword">public array</span> <span class="variable">$hooks</span> = [
+        \App\Services\PaymentService::<span class="keyword">class</span> => [
+            <span class="string">'before_payment'</span> => [
+                \App\Hooks\ValidateAmountHook::<span class="keyword">class</span>,     <span class="comment">// 1º executa</span>
+                \App\Hooks\FraudDetectionHook::<span class="keyword">class</span>,     <span class="comment">// 2º executa</span>
+                \App\Hooks\ApplyDiscountHook::<span class="keyword">class</span>,      <span class="comment">// 3º executa</span>
+            ],
+            <span class="string">'after_payment'</span> => [
+                \App\Hooks\SendEmailHook::<span class="keyword">class</span>,
+                \App\Hooks\UpdateAnalyticsHook::<span class="keyword">class</span>,
+            ]
+        ]
+    ];
+}</pre>
+            <ul>
+                <li>Ordem de execução explícita e controlada</li>
+                <li>Visualização completa de todas as extensões</li>
+                <li>Fácil para code review e debugging</li>
+            </ul>
+        </div>
+
+        <!-- Slide 9: Debug e Logs -->
+        <div class="slide">
+            <h1>Debug Mode & Logs Estruturados</h1>
+            <h2>Visibilidade total do fluxo de execução</h2>
+            <div class="log-output">=== [PaymentService] Lifecycle 'before_payment' started ===
+  hooks_count: 3
+  variables: {"user_id": "123", "amount": "100.00"}
+
+→ [Hook] ApplyDiscountHook executing...
+  severity: optional
+  variables_before: {"user_id": "123", "amount": "100.00"}
+✓ [Hook] ApplyDiscountHook completed
+  variables_after: {"user_id": "123", "amount": "90.00"}
+  <span style="color: yellow;">changes_detected: true</span>
+  <span style="color: yellow;">changes: {"amount": "100.00 → 90.00"}</span>
+
+→ [Hook] FraudDetectionHook executing...
+  severity: critical
+✓ [Hook] FraudDetectionHook completed (no changes)
+
+=== [PaymentService] Lifecycle 'before_payment' completed ===
+  final_variables: {"user_id": "123", "amount": "90.00"}</div>
+            <ul>
+                <li>Logs estruturados em JSON para análise</li>
+                <li>Rastreamento de mudanças em tempo real</li>
+                <li>Identificação de qual hook modificou o quê</li>
+                <li>Tempo de execução de cada hook</li>
+            </ul>
+        </div>
+
+        <!-- Slide 10: Ferramentas de Análise -->
+        <div class="slide">
+            <h1>Ferramentas Poderosas</h1>
+            <h2>Comando analyze detecta conflitos automaticamente</h2>
+            <div class="code-block">$ php artisan lifecycle:analyze PaymentService
+
+<span class="string">Side Effects Analysis:</span>
+  📝 before_payment:
+    - ApplyDiscountHook modifies: [amount]
+    - ApplyTaxHook modifies: [amount]
+    
+<span class="string">Potential Issues:</span>
+  ⚠️  Multiple hooks modify 'amount' in before_payment:
+      - ApplyDiscountHook
+      - ApplyTaxHook
+  <span style="color: yellow;">Order matters! Check execution sequence in Kernel.</span></div>
+            <h3>Outros comandos úteis:</h3>
+            <ul>
+                <li><code>lifecycle:main</code> - Gera serviço com lifecycle</li>
+                <li><code>lifecycle:hook</code> - Gera novo hook com boilerplate</li>
+                <li><code>lifecycle:analyze</code> - Analisa conflitos e side effects</li>
+            </ul>
+        </div>
+
+        <!-- Slide 11: Vantagens -->
+        <div class="slide">
+            <h1>Vantagens Principais</h1>
+            <ul>
+                <li>🔒 <strong>Isolamento:</strong> Cada time trabalha em seus próprios hooks</li>
+                <li>🚀 <strong>Deploy seguro:</strong> Hooks opcionais não quebram o sistema</li>
+                <li>🧪 <strong>Testabilidade:</strong> Cada hook pode ser testado isoladamente</li>
+                <li>📝 <strong>Manutenibilidade:</strong> Core permanece limpo e focado</li>
+                <li>👶 <strong>Junior-friendly:</strong> Menor risco de quebrar funcionalidades críticas</li>
+                <li>🔄 <strong>Mutabilidade controlada:</strong> Modificação por referência com rastreamento</li>
+                <li>📊 <strong>Observabilidade:</strong> Debug mode mostra todo o fluxo e mudanças</li>
+                <li>🎯 <strong>Detecção de conflitos:</strong> Análise automática de side effects</li>
+            </ul>
+        </div>
+
+        <!-- Slide 12: Quando Usar -->
+        <div class="slide">
+            <h1>Quando Usar</h1>
+            <div class="pros-cons">
+                <div class="pros">
+                    <h3>✅ Use para:</h3>
+                    <ul>
+                        <li>Processos complexos (checkout, pagamento)</li>
+                        <li>Times grandes com níveis variados</li>
+                        <li>Sistemas multi-tenant</li>
+                        <li>Features que precisam ser toggleadas</li>
+                        <li>Integrações com múltiplos sistemas</li>
+                    </ul>
+                </div>
+                <div class="cons">
+                    <h3>❌ Evite para:</h3>
+                    <ul>
+                        <li>CRUD simples</li>
+                        <li>Microserviços pequenos</li>
+                        <li>Performance crítica (trading)</li>
+                        <li>Times pequenos e experientes</li>
+                        <li>Projetos sem requisitos mutantes</li>
+                    </ul>
+                </div>
+            </div>
+            <h2 style="text-align: center; margin-top: 40px;">
+                🎯 Use nos 20% complexos, não nos 80% simples
+            </h2>
+        </div>
+    </div>
+
+    <div class="navigation">
+        <button id="prev-btn" onclick="changeSlide(-1)">← Anterior</button>
+        <button id="next-btn" onclick="changeSlide(1)">Próximo →</button>
+    </div>
+
+    <script>
+        let currentSlide = 1;
+        const totalSlides = document.querySelectorAll('.slide').length;
+        
+        document.getElementById('total-slides').textContent = totalSlides;
+
+        function showSlide(n) {
+            const slides = document.querySelectorAll('.slide');
+            
+            if (n > totalSlides) currentSlide = 1;
+            if (n < 1) currentSlide = totalSlides;
+            
+            slides.forEach(slide => slide.classList.remove('active'));
+            slides[currentSlide - 1].classList.add('active');
+            
+            document.getElementById('current-slide').textContent = currentSlide;
+            
+            // Update navigation buttons
+            document.getElementById('prev-btn').disabled = currentSlide === 1;
+            document.getElementById('next-btn').disabled = currentSlide === totalSlides;
+        }
+
+        function changeSlide(direction) {
+            currentSlide += direction;
+            showSlide(currentSlide);
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') changeSlide(-1);
+            if (e.key === 'ArrowRight') changeSlide(1);
+        });
+
+        // Initialize
+        showSlide(1);
+    </script>
+</body>
+</html>
