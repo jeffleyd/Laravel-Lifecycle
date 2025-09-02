@@ -7,7 +7,6 @@ Thumbs.db
 .env
 .env.backup
 .phpunit.result.cache
-composer.lock
 .pest.php
 coverage/
 .coverage/
