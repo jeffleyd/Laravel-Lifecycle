@@ -63,6 +63,10 @@ class FraudDetectionHook
 composer require php-diffused/lifecycle
 ```
 
+```bash
+php artisan vendor:publish --provider="PhpDiffused\Lifecycle\LifeCycleServiceProvider"
+```
+
 The configuration and kernel files are published automatically during installation.
 
 ## Key Features
