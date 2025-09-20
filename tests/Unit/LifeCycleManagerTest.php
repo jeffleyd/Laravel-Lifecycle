@@ -147,7 +147,6 @@ class LifeCycleManagerTest extends TestCase
         
         $this->manager->runHook(ManagerTestService::class, 'test.begin', $param1, $param2);
         
-        // param1 should be modified by the hook
         $this->assertEquals('modified', $param1);
         $this->assertEquals('unchanged', $param2);
     }
@@ -192,7 +191,6 @@ class ManagerCompleteHook
     
     public function handle(array &$args): void
     {
-        // Do nothing
     }
 }
 

@@ -23,13 +23,10 @@ class HelperFunctionsTest extends TestCase
     /** @test */
     public function runHook_executes_hooks_from_controller_context(): void
     {
-        // Based on README example: "Execute hooks without instantiating the service"
         $hook = new ControllerTestHook();
         addHook(ControllerTestService::class, $hook);
         
         $amount = 100.00;
-        
-        // Execute hooks without instantiating the service! (README example)
         runHook(ControllerTestService::class, 'payment.begin', $amount);
         
         $this->assertTrue($hook->wasExecuted());
@@ -41,16 +38,13 @@ class HelperFunctionsTest extends TestCase
     {
         $hook = new ControllerTestHook();
         
-        // Test with class name
         addHook(ControllerTestService::class, $hook);
         $amount = 100.00;
         runHook(ControllerTestService::class, 'payment.begin', $amount);
         $this->assertTrue($hook->wasExecuted());
         
-        // Reset hook
         $hook->reset();
         
-        // Test with instance
         $service = new ControllerTestService();
         $amount = 200.00;
         runHook($service, 'payment.begin', $amount);
@@ -61,14 +55,10 @@ class HelperFunctionsTest extends TestCase
     /** @test */
     public function runHook_supports_external_execution_from_tests(): void
     {
-        // Based on README example: "In tests"
         $amount = 100.00;
         
-        // Add test-specific hooks (README example)
         $testHook = new TestPaymentHook();
         addHook(ControllerTestService::class, $testHook);
-        
-        // Execute and verify (README example)
         runHook(ControllerTestService::class, 'payment.begin', $amount);
         
         $this->assertTrue($testHook->wasExecuted());
@@ -77,14 +67,12 @@ class HelperFunctionsTest extends TestCase
     /** @test */
     public function addHook_adds_hooks_dynamically(): void
     {
-        // Based on README example: "Add hooks dynamically"
         $customHook = new MyCustomHook();
         addHook(ControllerTestService::class, $customHook);
         
         $hooks = $this->manager->getHooksFor(ControllerTestService::class);
         $this->assertCount(1, $hooks);
         
-        // Verify the hook was added and works
         $amount = 100.00;
         runHook(ControllerTestService::class, 'payment.begin', $amount);
         $this->assertTrue($customHook->wasExecuted());
@@ -97,10 +85,8 @@ class HelperFunctionsTest extends TestCase
         $hook2 = new TestPaymentHook();
         $service = new ControllerTestService();
         
-        // Add with class name
         addHook(ControllerTestService::class, $hook1);
         
-        // Add with instance
         addHook($service, $hook2);
         
         $hooks = $this->manager->getHooksFor(ControllerTestService::class);
@@ -110,9 +96,8 @@ class HelperFunctionsTest extends TestCase
     /** @test */
     public function removeHooksFor_removes_hooks_for_specific_lifecycle(): void
     {
-        // Based on README example: "Remove all hooks for a specific lifecycle"
         $hook1 = new ControllerTestHook();
-        $hook2 = new OtherLifecycleHook();
+        $hook2 = new HelperOtherLifecycleHook();
         
         addHook(ControllerTestService::class, $hook1);
         addHook(ControllerTestService::class, $hook2);
@@ -121,11 +106,9 @@ class HelperFunctionsTest extends TestCase
         
         removeHooksFor(ControllerTestService::class, 'payment.begin');
         
-        // Should remove only hooks for 'payment.begin' lifecycle
         $remainingHooks = $this->manager->getHooksFor(ControllerTestService::class);
         $this->assertCount(1, $remainingHooks);
         
-        // Verify the remaining hook is for different lifecycle
         $remainingHook = $remainingHooks->first();
         $this->assertEquals('other.lifecycle', $remainingHook->getLifeCycle());
     }
@@ -139,11 +122,9 @@ class HelperFunctionsTest extends TestCase
         addHook($service, $hook);
         $this->assertCount(1, $this->manager->getHooksFor(ControllerTestService::class));
         
-        // Remove using class name
         removeHooksFor(ControllerTestService::class, 'payment.begin');
         $this->assertCount(0, $this->manager->getHooksFor(ControllerTestService::class));
         
-        // Add again and remove using instance
         addHook($service, $hook);
         removeHooksFor($service, 'payment.begin');
         $this->assertCount(0, $this->manager->getHooksFor(ControllerTestService::class));
@@ -152,7 +133,6 @@ class HelperFunctionsTest extends TestCase
     /** @test */
     public function helper_functions_support_mutable_hooks(): void
     {
-        // Test that helper functions work with mutable hooks
         $hook = new MutableHelperHook();
         addHook(ControllerTestService::class, $hook);
         
@@ -168,7 +148,6 @@ class HelperFunctionsTest extends TestCase
     /** @test */
     public function helper_functions_work_in_controller_simulation(): void
     {
-        // Simulate the README controller example
         $controller = new SimulatedPaymentController();
         $result = $controller->process(100.00, 'USD', 123);
         
@@ -258,13 +237,12 @@ class MyCustomHook
 
 
 #[Hook(scope: 'ControllerTestService', point: 'other.lifecycle', severity: Severity::Optional)]
-class OtherLifecycleHook
+class HelperOtherLifecycleHook
 {
     use Hookable;
     
     public function handle(array &$args): void
     {
-        // Do nothing
     }
 }
 
@@ -285,13 +263,10 @@ class SimulatedPaymentController
 {
     public function process(float $amount, string $currency, int $userId): array
     {
-        // Add a hook for this test
         addHook(ControllerTestService::class, new TestPaymentHook());
         
-        // Execute hooks without instantiating the service! (README example)
         runHook(ControllerTestService::class, 'payment.begin', $amount);
         
-        // Then process normally (README example)
         $service = new ControllerTestService();
         
         return [

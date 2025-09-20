@@ -79,8 +79,7 @@ class CoreLifeCycleTest extends TestCase
         $this->expectExceptionMessage("LifeCycle 'before_payment' expects arguments: amount");
         
         $userId = 123;
-        runHook(PaymentService::class, 'before_payment', $userId); // Missing 'amount'
-    }
+        runHook(PaymentService::class, 'before_payment', $userId);     }
     
     /** @test */
     public function it_throws_exception_for_invalid_lifecycle(): void
@@ -102,8 +101,7 @@ class CoreLifeCycleTest extends TestCase
         $this->expectException(HookExecutionException::class);
         $this->expectExceptionMessage("Critical hook failed in lifecycle 'before_payment'");
         
-        $userId = 999; // Suspicious user ID that triggers fraud detection
-        $amount = 100.50;
+        $userId = 999;         $amount = 100.50;
         
         runHook(PaymentService::class, 'before_payment', $userId, $amount);
     }
@@ -118,11 +116,9 @@ class CoreLifeCycleTest extends TestCase
         $amount = 100.50;
         $paymentId = 'PAY_123';
         
-        // Should not throw exception for optional hooks
-        runHook(PaymentService::class, 'after_payment', $userId, $amount, $paymentId);
+                runHook(PaymentService::class, 'after_payment', $userId, $amount, $paymentId);
         
-        $this->assertTrue(true); // Test passes if no exception is thrown
-    }
+        $this->assertTrue(true);     }
     
     /** @test */
     public function it_filters_hooks_by_lifecycle(): void
@@ -137,26 +133,22 @@ class CoreLifeCycleTest extends TestCase
         $amount = 100.50;
         $paymentId = 'PAY_123';
         
-        // Execute after_payment lifecycle
-        runHook(PaymentService::class, 'after_payment', $userId, $amount, $paymentId);
+                runHook(PaymentService::class, 'after_payment', $userId, $amount, $paymentId);
         
-        // Only after hook should be executed
-        $this->assertTrue($afterHook->wasExecuted());
+                $this->assertTrue($afterHook->wasExecuted());
         $this->assertFalse($beforeHook->wasExecuted());
     }
     
     /** @test */
     public function it_supports_external_hook_execution_from_controller(): void
     {
-        // Simula execução de hook de um controller (exemplo do README)
-        $hook = new FraudDetectionHook();
+                $hook = new FraudDetectionHook();
         addHook(PaymentService::class, $hook);
         
         $userId = 123;
         $amount = 100.50;
         
-        // Execute hooks without instantiating the service (como no README)
-        runHook(PaymentService::class, 'before_payment', $userId, $amount);
+                runHook(PaymentService::class, 'before_payment', $userId, $amount);
         
         $this->assertTrue($hook->wasExecuted());
     }
@@ -167,19 +159,16 @@ class CoreLifeCycleTest extends TestCase
         $hook1 = new EmailNotificationHook();
         $hook2 = new AnalyticsHook();
         
-        // Add hooks dynamically
-        addHook(PaymentService::class, $hook1);
+                addHook(PaymentService::class, $hook1);
         addHook(PaymentService::class, $hook2);
         
         $this->assertCount(2, $this->manager->getHooksFor(PaymentService::class));
         
-        // Remove hooks for specific lifecycle
-        removeHooksFor(PaymentService::class, 'after_payment');
+                removeHooksFor(PaymentService::class, 'after_payment');
         
         $this->assertCount(0, $this->manager->getHooksFor(PaymentService::class));
     }
 }
-
 
 #[LifeCyclePoint('before_payment', ['user_id', 'amount'])]
 #[LifeCyclePoint('after_payment', ['user_id', 'amount', 'payment_id'])]
@@ -192,8 +181,7 @@ class PaymentService
     {
         runHook($this, 'before_payment', $userId, $amount);
         
-        // Use potentially modified amount
-        $paymentId = $this->doPayment($userId, $amount);
+                $paymentId = $this->doPayment($userId, $amount);
         
         runHook($this, 'after_payment', $userId, $amount, $paymentId);
         
@@ -205,7 +193,6 @@ class PaymentService
         return 'PAY_' . uniqid();
     }
 }
-
 
 #[Hook(scope: 'PaymentService', point: 'after_payment', severity: Severity::Optional)]
 class EmailNotificationHook
@@ -220,9 +207,7 @@ class EmailNotificationHook
         $this->executed = true;
         $this->receivedArgs = $args;
         
-        // Simulate sending email (como no README)
-        // Mail::to($args['user_id'])->send(new PaymentConfirmation($args));
-    }
+                    }
     
     public function wasExecuted(): bool
     {
@@ -234,7 +219,6 @@ class EmailNotificationHook
         return $this->receivedArgs;
     }
 }
-
 
 #[Hook(scope: 'PaymentService', point: 'before_payment', severity: Severity::Critical)]
 class FraudDetectionHook
@@ -254,9 +238,7 @@ class FraudDetectionHook
     
     private function isFraudulent(array $args): bool
     {
-        // Simulate fraud detection logic
-        return $args['user_id'] === 999; // Suspicious user ID
-    }
+                return $args['user_id'] === 999;     }
     
     public function wasExecuted(): bool
     {
@@ -264,18 +246,19 @@ class FraudDetectionHook
     }
 }
 
-
 #[Hook(scope: 'PaymentService', point: 'after_payment', severity: Severity::Optional)]
 class FailingOptionalHook
 {
     use Hookable;
-    
+
+    /**
+     * @throws \Exception
+     */
     public function handle(array &$args): void
     {
         throw new \Exception('Optional hook failed');
     }
 }
-
 
 #[Hook(scope: 'PaymentService', point: 'after_payment', severity: Severity::Optional)]
 class AnalyticsHook
@@ -284,6 +267,5 @@ class AnalyticsHook
     
     public function handle(array &$args): void
     {
-        // Simulate analytics tracking
     }
 }

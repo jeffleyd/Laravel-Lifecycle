@@ -20,7 +20,6 @@ abstract class TestCase extends BaseTestCase
         $this->container = new Container();
         Container::setInstance($this->container);
 
-        // Mock config for tests
         $this->container->bind('config', function () {
             return new class {
                 public function get($key, $default = null) {
@@ -37,6 +36,13 @@ abstract class TestCase extends BaseTestCase
         $this->provider = new LifeCycleServiceProvider($this->container);
 
         $this->manager = new LifeCycleManager();
+        
+        // Set up test kernel if it exists
+        if (class_exists('PhpDiffused\Lifecycle\Tests\Feature\TestKernel')) {
+            $kernel = new \PhpDiffused\Lifecycle\Tests\Feature\TestKernel();
+            $this->manager->setHooksKernel($kernel);
+        }
+        
         $this->container->singleton(LifeCycleManager::class, function () {
             return $this->manager;
         });

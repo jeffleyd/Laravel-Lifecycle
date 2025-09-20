@@ -15,7 +15,12 @@ class LifeCycleManager
     
     public function __construct()
     {
-        $this->kernel = new \App\Hooks\Kernel();
+        // Try to load kernel, but don't fail if it doesn't exist
+        if (class_exists('\App\Hooks\Kernel')) {
+            $this->kernel = new \App\Hooks\Kernel();
+        } else {
+            $this->kernel = null;
+        }
     }
 
     /**

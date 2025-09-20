@@ -27,7 +27,6 @@ class KernelOrderingTest extends TestCase
     /** @test */
     public function it_executes_hooks_in_kernel_defined_order(): void
     {
-        // Add hooks in random order
         addHook(OrderedPaymentService::class, new ApplyDiscountOrderedHook());
         addHook(OrderedPaymentService::class, new ValidateAmountOrderedHook());
         addHook(OrderedPaymentService::class, new FraudDetectionOrderedHook());
@@ -37,7 +36,6 @@ class KernelOrderingTest extends TestCase
         
         runHook(OrderedPaymentService::class, 'before_payment', $userId, $amount);
         
-        // Should execute in kernel-defined order: Validate -> Fraud -> Discount
         $this->assertEquals(['validate', 'fraud', 'discount'], self::$executionOrder);
     }
     
@@ -48,12 +46,10 @@ class KernelOrderingTest extends TestCase
         $amount = 100.00;
         $paymentId = 'PAY_123';
         
-        // Test before_payment order (should only execute hooks defined in kernel for this lifecycle)
         self::$executionOrder = [];
         runHook(OrderedPaymentService::class, 'before_payment', $userId, $amount);
         $this->assertEquals(['validate', 'fraud', 'discount'], self::$executionOrder);
         
-        // Test after_payment order (different from before_payment)
         self::$executionOrder = [];
         runHook(OrderedPaymentService::class, 'after_payment', $userId, $amount, $paymentId);
         $this->assertEquals(['email', 'analytics'], self::$executionOrder);
@@ -67,7 +63,6 @@ class KernelOrderingTest extends TestCase
         
         runHook(OrderedPaymentService::class, 'before_payment', $userId, $amount);
         
-        // Should execute hooks in kernel order
         $this->assertContains('validate', self::$executionOrder);
         $this->assertContains('fraud', self::$executionOrder);
         $this->assertContains('discount', self::$executionOrder);
@@ -76,7 +71,6 @@ class KernelOrderingTest extends TestCase
         $fraudIndex = array_search('fraud', self::$executionOrder);
         $discountIndex = array_search('discount', self::$executionOrder);
         
-        // Validate should come before fraud, fraud before discount (kernel order)
         $this->assertLessThan($fraudIndex, $validateIndex);
         $this->assertLessThan($discountIndex, $fraudIndex);
     }
@@ -84,8 +78,7 @@ class KernelOrderingTest extends TestCase
     /** @test */
     public function it_works_without_kernel_configuration(): void
     {
-        // Test with no kernel configuration
-        $this->manager->setHooksKernel(new EmptyKernel());
+                $this->manager->setHooksKernel(new EmptyKernel());
         
         addHook(OrderedPaymentService::class, new ValidateAmountOrderedHook());
         addHook(OrderedPaymentService::class, new FraudDetectionOrderedHook());
@@ -95,24 +88,20 @@ class KernelOrderingTest extends TestCase
         
         runHook(OrderedPaymentService::class, 'before_payment', $userId, $amount);
         
-        // Should execute in registration order when no kernel config
-        $this->assertEquals(['validate', 'fraud'], self::$executionOrder);
+                $this->assertEquals(['validate', 'fraud'], self::$executionOrder);
     }
     
     /** @test */
     public function it_handles_kernel_with_non_existent_hooks(): void
     {
-        // Kernel references hooks that don't exist
-        $this->manager->setHooksKernel(new KernelWithNonExistentHooks());
+                $this->manager->setHooksKernel(new KernelWithNonExistentHooks());
         
-        // Only add one of the hooks referenced in kernel
-        addHook(OrderedPaymentService::class, new ValidateAmountOrderedHook());
+                addHook(OrderedPaymentService::class, new ValidateAmountOrderedHook());
         
         $userId = 123;
         $amount = 100.00;
         
-        // Should not throw error, just skip non-existent hooks
-        runHook(OrderedPaymentService::class, 'before_payment', $userId, $amount);
+                runHook(OrderedPaymentService::class, 'before_payment', $userId, $amount);
         
         $this->assertEquals(['validate'], self::$executionOrder);
     }
@@ -120,8 +109,7 @@ class KernelOrderingTest extends TestCase
     /** @test */
     public function it_demonstrates_readme_example_ordering(): void
     {
-        // Based on README example with specific order
-        $this->manager->setHooksKernel(new ReadmeExampleKernel());
+                $this->manager->setHooksKernel(new ReadmeExampleKernel());
         
         addHook(OrderedPaymentService::class, new ValidateAmountOrderedHook());    // 1st: Validation
         addHook(OrderedPaymentService::class, new FraudDetectionOrderedHook());   // 2nd: Security  
@@ -132,8 +120,7 @@ class KernelOrderingTest extends TestCase
         
         runHook(OrderedPaymentService::class, 'before_payment', $userId, $amount);
         
-        // Should follow README example order
-        $this->assertEquals(['validate', 'fraud', 'discount'], self::$executionOrder);
+                $this->assertEquals(['validate', 'fraud', 'discount'], self::$executionOrder);
     }
     
     public static function recordExecution(string $hookName): void
@@ -193,8 +180,7 @@ class KernelWithNonExistentHooks
         OrderedPaymentService::class => [
             'before_payment' => [
                 ValidateAmountOrderedHook::class,
-                'NonExistentHook',  // This doesn't exist
-                'AnotherNonExistentHook',
+                'NonExistentHook',                  'AnotherNonExistentHook',
             ],
         ],
     ];
@@ -261,7 +247,7 @@ class UpdateAnalyticsOrderedHook extends OrderedHook
 }
 
 #[Hook(scope: 'OrderedPaymentService', point: 'before_payment', severity: Severity::Optional)]
-class UnorderedHook extends OrderedHook
+class KernelUnorderedHook extends OrderedHook
 {
     protected string $name = 'unordered';
 }

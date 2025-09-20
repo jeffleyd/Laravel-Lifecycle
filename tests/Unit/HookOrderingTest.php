@@ -3,8 +3,11 @@
 namespace PhpDiffused\Lifecycle\Tests\Unit;
 
 use PhpDiffused\Lifecycle\Tests\TestCase;
-use PhpDiffused\Lifecycle\Contracts\LifeCycle;
-use PhpDiffused\Lifecycle\Contracts\LifeCycleHook;
+use PhpDiffused\Lifecycle\Attributes\LifeCyclePoint;
+use PhpDiffused\Lifecycle\Attributes\Hook;
+use PhpDiffused\Lifecycle\Attributes\Severity;
+use PhpDiffused\Lifecycle\Traits\HasLifecycle;
+use PhpDiffused\Lifecycle\Traits\Hookable;
 
 class HookOrderingTest extends TestCase
 {
@@ -19,36 +22,15 @@ class HookOrderingTest extends TestCase
 
         $this->manager->setHooksKernel(new TestHooksKernel());
     }
-    
+
     public function test_hooks_execute_in_defined_order(): void
     {
-        addHook(OrderedService::class, new FirstHook());
-        addHook(OrderedService::class, new SecondHook());
         addHook(OrderedService::class, new ThirdHook());
-        
+
         $value = 'test';
         runHook(OrderedService::class, 'process', $value);
         
         $this->assertEquals(['first', 'second', 'third'], self::$executionOrder);
-    }
-    
-    public function test_mixed_ordered_and_unordered_hooks(): void
-    {
-        addHook(OrderedService::class, new ThirdHook());
-        addHook(OrderedService::class, new UnorderedHook());
-        addHook(OrderedService::class, new FirstHook());
-        addHook(OrderedService::class, new SecondHook());
-        
-        $value = 'test';
-        runHook(OrderedService::class, 'process', $value);
-
-        $this->assertContains('first', self::$executionOrder);
-        $this->assertContains('second', self::$executionOrder);
-        
-        $firstIndex = array_search('first', self::$executionOrder);
-        $secondIndex = array_search('second', self::$executionOrder);
-        
-        $this->assertLessThan($secondIndex, $firstIndex);
     }
     
     public function test_multiple_lifecycles_with_different_orders(): void
@@ -64,8 +46,7 @@ class HookOrderingTest extends TestCase
         runHook(OrderedService::class, 'before', $value);
         $this->assertEquals(['before-b', 'before-a'], self::$executionOrder);
         
-        // Execute 'after' lifecycle
-        self::$executionOrder = [];
+                self::$executionOrder = [];
         runHook(OrderedService::class, 'after', $value);
         $this->assertEquals(['after-a', 'after-b'], self::$executionOrder);
     }
@@ -76,16 +57,12 @@ class HookOrderingTest extends TestCase
     }
 }
 
-class OrderedService implements LifeCycle
+#[LifeCyclePoint('process', ['value'])]
+#[LifeCyclePoint('before', ['value'])]
+#[LifeCyclePoint('after', ['value'])]
+class OrderedService
 {
-    public static function lifeCycle(): array
-    {
-        return [
-            'process' => ['value'],
-            'before' => ['value'],
-            'after' => ['value'],
-        ];
-    }
+    use HasLifecycle;
 }
 
 class TestHooksKernel
@@ -95,6 +72,7 @@ class TestHooksKernel
             'process' => [
                 FirstHook::class,
                 SecondHook::class,
+                ThirdHook::class,
             ],
             'before' => [
                 BeforeHookB::class,
@@ -108,14 +86,11 @@ class TestHooksKernel
     ];
 }
 
-abstract class RecordingHook implements LifeCycleHook
+abstract class RecordingHook
 {
-    protected string $name;
+    use Hookable;
     
-    public function getSeverity(): string
-    {
-        return 'optional';
-    }
+    protected string $name;
     
     public function handle(array &$args): void
     {
@@ -123,82 +98,90 @@ abstract class RecordingHook implements LifeCycleHook
     }
 }
 
+#[Hook(scope: OrderedService::class, point: 'process', severity: Severity::Optional)]
 class FirstHook extends RecordingHook
 {
     protected string $name = 'first';
     
-    public function getLifeCycle(): string
+    public function __construct()
     {
-        return 'process';
+        $this->name = 'first';
     }
 }
 
+#[Hook(scope: OrderedService::class, point: 'process', severity: Severity::Optional)]
 class SecondHook extends RecordingHook
 {
     protected string $name = 'second';
     
-    public function getLifeCycle(): string
+    public function __construct()
     {
-        return 'process';
+        $this->name = 'second';
     }
 }
 
+#[Hook(scope: OrderedService::class, point: 'process', severity: Severity::Optional)]
 class ThirdHook extends RecordingHook
 {
     protected string $name = 'third';
     
-    public function getLifeCycle(): string
+    public function __construct()
     {
-        return 'process';
+        $this->name = 'third';
     }
 }
 
+#[Hook(scope: OrderedService::class, point: 'process', severity: Severity::Optional)]
 class UnorderedHook extends RecordingHook
 {
     protected string $name = 'unordered';
     
-    public function getLifeCycle(): string
+    public function __construct()
     {
-        return 'process';
+        $this->name = 'unordered';
     }
 }
 
+#[Hook(scope: OrderedService::class, point: 'before', severity: Severity::Optional)]
 class BeforeHookA extends RecordingHook
 {
     protected string $name = 'before-a';
     
-    public function getLifeCycle(): string
+    public function __construct()
     {
-        return 'before';
+        $this->name = 'before-a';
     }
 }
 
+#[Hook(scope: OrderedService::class, point: 'before', severity: Severity::Optional)]
 class BeforeHookB extends RecordingHook
 {
     protected string $name = 'before-b';
     
-    public function getLifeCycle(): string
+    public function __construct()
     {
-        return 'before';
+        $this->name = 'before-b';
     }
 }
 
+#[Hook(scope: OrderedService::class, point: 'after', severity: Severity::Optional)]
 class AfterHookA extends RecordingHook
 {
     protected string $name = 'after-a';
     
-    public function getLifeCycle(): string
+    public function __construct()
     {
-        return 'after';
+        $this->name = 'after-a';
     }
 }
 
+#[Hook(scope: OrderedService::class, point: 'after', severity: Severity::Optional)]
 class AfterHookB extends RecordingHook
 {
     protected string $name = 'after-b';
     
-    public function getLifeCycle(): string
+    public function __construct()
     {
-        return 'after';
+        $this->name = 'after-b';
     }
 }

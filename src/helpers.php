@@ -1,6 +1,46 @@
 <?php
 
 use PhpDiffused\Lifecycle\LifeCycleManager;
+use Illuminate\Container\Container;
+
+if (!function_exists('app')) {
+    /**
+     * Get the available container instance.
+     */
+    function app(string $abstract = null)
+    {
+        $container = Container::getInstance();
+        
+        if (is_null($abstract)) {
+            return $container;
+        }
+        
+        return $container->make($abstract);
+    }
+}
+
+if (!function_exists('logger')) {
+    /**
+     * Get a logger instance for testing.
+     */
+    function logger()
+    {
+        return new class {
+            public function info($message, $context = []) {
+                // Mock logger for tests
+            }
+            public function debug($message, $context = []) {
+                // Mock logger for tests
+            }
+            public function error($message, $context = []) {
+                // Mock logger for tests
+            }
+            public function warning($message, $context = []) {
+                // Mock logger for tests
+            }
+        };
+    }
+}
 
 if (!function_exists('runHook')) {
     /**
@@ -23,7 +63,7 @@ if (!function_exists('runHook')) {
      */
     function runHook($target, string $lifeCycle, &...$args): void
     {
-        $manager = new LifeCycleManager;
+        $manager = app(LifeCycleManager::class);
         $manager->runHook($target, $lifeCycle, ...$args);
     }
 }
@@ -42,7 +82,7 @@ if (!function_exists('addHook')) {
     {
         $className = is_object($target) ? get_class($target) : $target;
 
-        $manager = new LifeCycleManager;
+        $manager = app(LifeCycleManager::class);
         $manager->addHook($className, $hook);
     }
 }
@@ -61,7 +101,7 @@ if (!function_exists('removeHooksFor')) {
     {
         $className = is_object($target) ? get_class($target) : $target;
 
-        $manager = new LifeCycleManager;
+        $manager = app(LifeCycleManager::class);
         $manager->removeHooksFor($className, $lifeCycle);
     }
 }

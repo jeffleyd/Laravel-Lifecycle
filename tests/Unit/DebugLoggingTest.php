@@ -2,6 +2,8 @@
 
 namespace PhpDiffused\Lifecycle\Tests\Unit;
 
+use PhpDiffused\Lifecycle\Exceptions\HookExecutionException;
+use PhpDiffused\Lifecycle\Exceptions\InvalidLifeCycleException;
 use PhpDiffused\Lifecycle\Tests\TestCase;
 use PhpDiffused\Lifecycle\Attributes\LifeCyclePoint;
 use PhpDiffused\Lifecycle\Attributes\Hook;
@@ -17,21 +19,19 @@ class DebugLoggingTest extends TestCase
     {
         parent::setUp();
         
-        // Mock config com debug habilitado
         $this->container->bind('config', function () {
             return new class {
                 public function get($key, $default = null) {
                     return match ($key) {
-                        'lifecycle.debug' => true, // Habilitar debug para este teste
-                        'lifecycle.error_handling.log_failures' => true,
+                        'lifecycle.debug',
+                        'lifecycle.error_handling.log_failures',
                         'lifecycle.error_handling.throw_on_critical' => true,
                         default => $default
                     };
                 }
             };
         });
-        
-        // Mock logger para capturar logs de debug
+
         $logs = &$this->logs;
         $this->container->bind('log', function () use (&$logs) {
             return new class($logs) {
@@ -42,19 +42,23 @@ class DebugLoggingTest extends TestCase
                     $this->logs = &$logs;
                 }
                 
-                public function debug($message, $context = [])
+                public function debug($message, $context = []): void
                 {
                     $this->logs[] = ['level' => 'debug', 'message' => $message, 'context' => $context];
                 }
                 
-                public function error($message, $context = [])
+                public function error($message, $context = []): void
                 {
                     $this->logs[] = ['level' => 'error', 'message' => $message, 'context' => $context];
                 }
             };
         });
     }
-    
+
+    /**
+     * @throws InvalidLifeCycleException
+     * @throws HookExecutionException
+     */
     public function test_debug_logs_lifecycle_execution_flow(): void
     {
         $discountHook = new DebugDiscountHook();
@@ -65,10 +69,7 @@ class DebugLoggingTest extends TestCase
         
         $this->manager->runHook(DebugPaymentService::class, 'process_payment', $amount, $userId);
         
-        // Verificar se logs de debug foram criados
         $this->assertGreaterThan(0, count($this->logs));
-        
-        // Verificar log de início do lifecycle
         $startLogs = array_filter($this->logs, fn($log) => str_contains($log['message'], 'started'));
         $this->assertCount(1, $startLogs);
         
@@ -77,11 +78,9 @@ class DebugLoggingTest extends TestCase
         $this->assertStringContainsString('process_payment', $startLog['message']);
         $this->assertEquals(1, $startLog['context']['hooks_count']);
         
-        // Verificar logs de execução de hooks
         $hookExecutionLogs = array_filter($this->logs, fn($log) => str_contains($log['message'], '[Hook]'));
         $this->assertGreaterThan(0, count($hookExecutionLogs));
         
-        // Verificar log de hook executando com namespace completo
         $hookStartLogs = array_filter($hookExecutionLogs, fn($log) => str_contains($log['message'], 'executing'));
         $this->assertCount(1, $hookStartLogs);
         
@@ -89,7 +88,6 @@ class DebugLoggingTest extends TestCase
         $this->assertStringContainsString('PhpDiffused\Lifecycle\Tests\Unit\DebugDiscountHook', $hookStartLog['message']);
         $this->assertArrayHasKey('variables_before', $hookStartLog['context']);
         
-        // Verificar log de hook concluído
         $hookEndLogs = array_filter($hookExecutionLogs, fn($log) => str_contains($log['message'], 'completed'));
         $this->assertCount(1, $hookEndLogs);
         
@@ -98,7 +96,6 @@ class DebugLoggingTest extends TestCase
         $this->assertArrayHasKey('variables_after', $hookEndLog['context']);
         $this->assertArrayHasKey('changes_detected', $hookEndLog['context']);
         
-        // Verificar log de fim do lifecycle
         $endLogs = array_filter($this->logs, fn($log) => str_contains($log['message'], 'completed'));
         $this->assertGreaterThan(0, count($endLogs));
     }
@@ -113,8 +110,7 @@ class DebugLoggingTest extends TestCase
         
         $this->manager->runHook(DebugPaymentService::class, 'process_payment', $amount, $userId);
         
-        // Verificar se o hook foi executado e o log foi gerado
-        $hookCompletedLogs = array_filter($this->logs, fn($log) => 
+        $hookCompletedLogs = array_filter($this->logs, fn($log) =>
             str_contains($log['message'], '[Hook]') && 
             str_contains($log['message'], 'completed')
         );
@@ -124,19 +120,16 @@ class DebugLoggingTest extends TestCase
         $hookLog = array_values($hookCompletedLogs)[0];
         $this->assertArrayHasKey('changes_detected', $hookLog['context']);
         $this->assertArrayHasKey('changes', $hookLog['context']);
-        // Debug está funcionando corretamente - o sistema de mudanças será corrigido em outro momento
         $this->assertTrue(true);
     }
     
     public function test_debug_disabled_does_not_generate_logs(): void
     {
-        // Reconfigurar mock para desabilitar debug
         $this->container->bind('config', function () {
             return new class {
                 public function get($key, $default = null) {
                     return match ($key) {
-                        'lifecycle.debug' => false, // Debug desabilitado
-                        'lifecycle.error_handling.log_failures' => true,
+                        'lifecycle.debug' => false,                         'lifecycle.error_handling.log_failures' => true,
                         'lifecycle.error_handling.throw_on_critical' => true,
                         default => $default
                     };
@@ -152,7 +145,6 @@ class DebugLoggingTest extends TestCase
         
         $this->manager->runHook(DebugPaymentService::class, 'process_payment', $amount, $userId);
         
-        // Não deveria ter logs de debug
         $debugLogs = array_filter($this->logs, fn($log) => $log['level'] === 'debug');
         $this->assertCount(0, $debugLogs);
     }
@@ -171,7 +163,6 @@ class DebugDiscountHook
     
     public function handle(array &$args): void
     {
-        // Hook simples que não modifica nada
     }
 }
 
@@ -182,7 +173,6 @@ class DebugModifyHook
     
     public function handle(array &$args): void
     {
-        // Modificar o primeiro argumento para testar detecção de mudanças
-        $args[0] = $args[0] * 0.9; // 10% desconto
+        $args[0] = $args[0] * 0.9;
     }
 }

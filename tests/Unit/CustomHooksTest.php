@@ -15,12 +15,11 @@ class CustomHooksTest extends TestCase
     {
         parent::setUp();
         
-        // Mock config service for testing (disable auto-discovery)
-        $this->container->bind('config', function () {
+                $this->container->bind('config', function () {
             return new class {
                 public function get($key, $default = null) {
                     return match ($key) {
-                        'lifecycle.auto_discovery' => false, // Disable to avoid app_path issues
+                        'lifecycle.auto_discovery' => false,
                         'lifecycle.cache.enabled' => false,
                         default => $default
                     };
@@ -28,8 +27,7 @@ class CustomHooksTest extends TestCase
             };
         });
         
-        // Configure test kernel with custom hooks
-        $testKernel = new class {
+                $testKernel = new class {
             public array $hooks = [
                 TestServiceWithCustomHooks::class => [
                     'process' => [
@@ -45,7 +43,6 @@ class CustomHooksTest extends TestCase
     
     public function test_kernel_can_register_custom_hooks(): void
     {
-        // Verificar se o kernel foi configurado corretamente
         $this->assertNotNull($this->provider->hooksKernel);
         $this->assertArrayHasKey(TestServiceWithCustomHooks::class, $this->provider->hooksKernel->hooks);
         
@@ -59,8 +56,7 @@ class CustomHooksTest extends TestCase
         CustomHookFromAnotherLocation::$executed = false;
         AnotherCustomHook::$executed = false;
         
-        // Configurar o kernel no manager
-        $this->manager->setHooksKernel($this->provider->hooksKernel);
+                $this->manager->setHooksKernel($this->provider->hooksKernel);
         
         $data = 'test_data';
         runHook(TestServiceWithCustomHooks::class, 'process', $data);
@@ -74,8 +70,7 @@ class CustomHooksTest extends TestCase
         CustomHookFromAnotherLocation::$executionOrder = [];
         AnotherCustomHook::$executionOrder = [];
         
-        // Configurar o kernel no manager
-        $this->manager->setHooksKernel($this->provider->hooksKernel);
+                $this->manager->setHooksKernel($this->provider->hooksKernel);
         
         $data = 'test_data';
         runHook(TestServiceWithCustomHooks::class, 'process', $data);
@@ -85,8 +80,7 @@ class CustomHooksTest extends TestCase
             AnotherCustomHook::$executionOrder
         );
         
-        // Sort by timestamp to get execution order
-        asort($allExecutions);
+                asort($allExecutions);
         $executedClasses = array_keys($allExecutions);
         
         $this->assertEquals([
